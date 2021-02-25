@@ -24,6 +24,11 @@ class Args():
             print("Invalid args: ending block ID/timetamp should be bigger than starting one!")
             exit(127)
 
+        # assure transaction saving is only enabled if extraction from transactions mode is enabled too
+        if (args.save_transactions == False) and args.transactions:
+            print("Can't save transactions without transaction extracting mode!")
+            exit(127)
+
         return args
 
     # setup arg parser object
@@ -50,13 +55,14 @@ class Args():
         # enable search on transaction addresses
         parser.add_argument('--addresses', action = 'store_true', help = 'Search for \
                 blob files on \'to\' transaction addresses, as on Ethereum anyone can make \
-                transactions to an arbitrary address even if it has no related owner. If enabled \
-                then transaction\'s input check is disabled unless explicitly enabled.')
+                transactions to an arbitrary address even if it has no related owner \
+                (still not very common). If enabled then transaction\'s input check \
+                is disabled unless explicitly enabled.')
 
         # interpret start and end block ids as timestamps
         parser.add_argument('-t', '--timestamps', action = 'store_true', help = 'If enabled, then start and \
                 end block IDs are interpreted as UNIX timestamps that are then resolved to the closest \
-                commited blocks for that time.')
+                commited blocks for that specific time.')
 
         # api key path
         parser.add_argument('-K', '--api-key-path', type = string, help = 'Path to file with Etherscan \
@@ -64,15 +70,15 @@ class Args():
 
         # api key
         parser.add_argument('-k', '--api-key', type = string, help = 'Etherscan API key as parameter. \
-                If given then \'--api-key-path\' is ignored.', default = '')
+                If given then \'--api-key-path\' is ignored.', default = 'default_api_key')
 
         # extracted files' output directory
         parser.add_argument('-D', '--output-dir', type = string, help = 'Out-dir for extracted files.',
-                default = "ext_{}-{}")
+                default = "default_ext_dir")
 
         # output log file
         parser.add_argument('-o', '--out-log', type = string, help = 'Out-file for logs',
-                default = "etherblob_{}-{}.log")
+                default = "default_log_file")
 
         # save all transactions and their info
         parser.add_argument('-s', '--save-transactions', action = 'store_true', help = 'If enabled, all \
@@ -82,8 +88,8 @@ class Args():
         # ignored file formats
         parser.add_argument('-i', '--ignored-fmt',  help = 'Ignored file formats for extraction. \
                 Default ignored/common file formats are \'ISO-8859 text\' and \'Non-ISO extended-ASCII \
-                text\'. The \'data\' file format is always ignored.',
-                nargs = '*', default = ["Non-ISO", "ISO-8859 text"])
+                text\'. The \'data\' file format is always ignored. Accepts file format substrings and \
+                makes case-insensitive matches.', nargs = '*', default = ["default_file_fmt"])
 
         # print version and exit
         parser.add_argument('--version', action = 'version', version = 'EtherBlob Explorer 1.0.0')
