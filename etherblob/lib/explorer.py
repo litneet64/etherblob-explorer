@@ -3,18 +3,19 @@ from time import sleep
 from etherscan import Etherscan
 from etherblob.lib.extractor import Extractor
 from etherblob.lib.stats import Stats
+from etherblob.utils.log import Logger
 
 class EtherBlobExplorer():
     EXT_DIR = "ext_{}-{}"                   # extracted files dir
-    EXT_FILE_NAME = "{}/file_{{}}"          # generic extracted file name
     TRANS_FILE = "transactions_{}-{}.txt"   # saved transactions file name
     MAX_TIME = 2**8                         # max time to retry querying again (accept 8 errors then stop increasing time)
 
     # make sanity checks and initialize structures
-    def __init__(self, logger, args):
-        # get logger, get api key and etherscan object
+    def __init__(self, args):
+        # get logger, get api key and etherscan object, create extracted files' dir
         self.args = args
-        self.logger = logger
+        self.logger = Logger.logging_setup(args.start_block, args.end_block, args.out_log)
+        self.ext_dir = self.create_ext_dir(args.start_block, args.end_block, args.output_dir)
         self.api_key = self.get_apikey(args.api_key, args.api_key_path)
         self.eth_scan = Etherscan(self.api_key)
 
@@ -23,24 +24,25 @@ class EtherBlobExplorer():
                                                             args.end_block,
                                                             args.timestamps
                                                         )
-        # copy starting block id and set last retry's time power base
+        # copy starting block id, last retry's time power base and other counters
         self.block_id = args.start_block
         self.last_retry_t = 2
+        self.files_c = 0
+        self.trans_c = 0
 
-        # start stat engine and extractor
-        self.extractor = Extractor()
-        self.stats = Stats()
+        # handler to transaction file if enabled
+        self.trans_file = None
+
+        # start stat engine and extractor passing reference to this same instance
+        self.extractor = Extractor(self)
+        self.stats = Stats(self)
 
 
     # main querying engine
     def run_engine(self):
-        # extracted file and transaction counters
-        file_c = 0
-        trans_c = 0
-
         # if enabled, get file for saved transactions
         if self.args.save_transactions:
-            trans_file = open(self.TRANSFILE, "+w")
+            self.trans_file = open(self.TRANS_FILE, "+w")
 
         while (self.block_id != (self.args.end_block + 1)):
             # attempt to get this block's information
@@ -49,16 +51,31 @@ class EtherBlobExplorer():
             except Exception as e:
                 continue
 
+            # run diff extraction modes if enabled
             if self.args.transactions:
-                pass
+                self.extractor.extract_from_transactions(block_info)
             if self.args.blocks:
-                pass
+                self.extractor.extract_from_block(block_info)
             if self.args.addresses:
-                pass
+                self.extractor.search_in_trans_address(block_info)
 
             # wait to avoid triggering anti-abuse measures
             sleep(0.2)
-            block_id += 1
+            self.block_id += 1
+
+            # show cycle stats
+            self.stats.show_cycle_metrics()
+
+        # close saved transactions file
+        if self.args.save_transactions:
+            self.trans_file.close()
+
+        # if enabled, extract files from transactions addresses
+        if self.args.addresses:
+            self.extractor.extract_from_trans_address()
+
+        # show final stats
+        self.stats.show_final_metrics()
 
         return
 
@@ -83,8 +100,10 @@ class EtherBlobExplorer():
 
 
     # create dir for extracted files
-    def create_ext_dir(self, s_blk, e_blk):
-        ext_dir = EXT_DIR.format(s_blk, e_blk)
+    def create_ext_dir(self, s_blk, e_blk, ext_dir):
+        if ext_dir == "default_ext_dir":
+            ext_dir = EXT_DIR.format(s_blk, e_blk)
+
         self.logger.info(f"Creating dir for files at '{ext_dir}'...")
         try:
             os.mkdir(ext_dir)
@@ -92,7 +111,7 @@ class EtherBlobExplorer():
             self.logger.error(f"Dir '{ext_dir}' already exists...")
             self.logger.error_exit()
 
-        return
+        return ext_dir
 
 
     # check and resolve timestamps if given
@@ -120,8 +139,8 @@ class EtherBlobExplorer():
 
     # get api key from args
     def get_apikey(self, ak, ak_path):
-        # api key from args not empty
-        if ak:
+        # api key from args is not default one
+        if ak != "default_api_key":
             api_key = ak
         else:
             # attempt to get api key from file
@@ -129,8 +148,11 @@ class EtherBlobExplorer():
                 api_f = open(ak_path, "r")
                 api_key = api_f.read().strip("\n")
                 api_f.close()
+            except FileNotFoundError:
+                self.logger.error(f"API key not found at '{ak_path}'!")
+                self.logger.error_exit()
             except Exception as e:
-                self.logger.error(f"Error: api key not found on '{ak_path}'!")
+                self.logger.error(f"Unknown error: {e}")
                 self.logger.error_exit()
 
         return api_key
