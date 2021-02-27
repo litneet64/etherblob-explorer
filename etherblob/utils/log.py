@@ -7,21 +7,18 @@ class Logger():
 
 
     def __init__(self, args):
-        self.logger = self.logging_setup(args.start_block, args.end_block, args.out_log)
+        self.out_log = self.get_outlog(args.start_block, args.end_block, args.out_log)
+        self.logger = self.logging_setup()
 
 
     # setup logging config for stdout and a file
-    @classmethod
-    def logging_setup(cls, s_block, e_block, out_log):
-        if out_log == "default_log_file":
-            out_log = cls.OUT_LOG.format(s_block, e_block)
-
+    def logging_setup(self):
         # set formatter and get root logger
-        log_fmt = logging.Formatter(cls.FORMAT)
+        log_fmt = logging.Formatter(self.FORMAT)
         root_log = logging.getLogger()
 
         # create file handler and attach to root logger
-        file_hdlr = logging.FileHandler(out_log)
+        file_hdlr = logging.FileHandler(self.out_log)
         file_hdlr.setFormatter(log_fmt)
         file_hdlr.setLevel(logging.INFO)
         root_log.addHandler(file_hdlr)
@@ -35,6 +32,14 @@ class Logger():
         root_log.setLevel(logging.INFO)
 
         return root_log
+
+
+    # get log-file name
+    def get_outlog(self, s_blk, e_blk, out_log):
+        if out_log == "default_log_file":
+            out_log = self.OUT_LOG.format(s_blk, e_blk)
+
+        return out_log
 
 
     # wrapper around exit with logging message
