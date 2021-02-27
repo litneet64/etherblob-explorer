@@ -9,14 +9,14 @@ class Extractor():
     EXT_FILE_NAME = "{}/file_{{}}"                          # generic extracted file name
 
     def __init__(self, blob_exp):
-        # get reference to blob explorer object and copy frequently used objects
-        self.blob_exp = blob_exp
+        # get reference to blob explorer and copy frequently used objects
         self.logger = blob_exp.logger
+        self.stats = blob_exp.stats
         self.trans_file = blob_exp.trans_file
 
         # parse extracted file name and ignored file formats
-        self.ext_file_name = self.get_ext_file_path(self.blob_exp.ext_dir)
-        self.ignored_fmt = self.get_ignored_fmts(self.blob_exp.args.ignored_fmt)
+        self.ext_file_name = self.get_ext_file_path(blob_exp.ext_dir)
+        self.ignored_fmt = self.get_ignored_fmts(blob_exp.args.ignored_fmt)
 
         # interesting addresses that smuggled data on 'to' field in transaction
         self.tracked_addr = {}
@@ -38,14 +38,14 @@ class Extractor():
         # check for magic bytes or file header
         file_fmt = magic.from_buffer(raw_data)
         if self.not_ignored_format(file_fmt):
-            ext_file = self.ext_file_name.format(self.blob_exp.files_c)
-            self.logger.info(log_msg.format(fmt, id, ext_file))
+            ext_file = self.ext_file_name.format(self.stats.files_c)
+            self.logger.info(log_msg.format(file_fmt, id, ext_file))
 
             # and write file into dropped files folder
             with open(ext_file, "+wb") as tmp_file:
                 tmp_file.write(raw_data)
 
-            self.blob_exp.files_c += 1
+            self.stats.files_c += 1
 
         return
 
@@ -77,7 +77,7 @@ class Extractor():
                             self.trans_file.write(f"\t[-] {k}: {v}\n")
                     self.trans_file.write("\n")
 
-                self.blob_exp.trans_c += 1
+                self.stats.trans_c += 1
 
         return
 
@@ -90,6 +90,10 @@ class Extractor():
             from_addr = trans_obj['from']
 
             try:
+                # 'to' address is empty when creating a contract (uses field 'creates')
+                if not trans_obj['to']:
+                    continue
+
                 # parse 'to' addresses into bytes and search for file header or magic bytes
                 data = self.parse_raw_data(trans_obj['to'])
                 file_fmt = magic.from_buffer(data)
@@ -99,8 +103,8 @@ class Extractor():
                     # and it's first time finding this 'from' address
                     if not self.tracked_addr.get(from_addr):
                         self.tracked_addr[from_addr] = b""
-                        self.logger.info(f"Found file header in transaction '{trans_hash}' \
-                                           coming from address '{from_addr}'...")
+                        self.logger.info(f"Found file header in transaction '{trans_hash}' "\
+                                            f"coming from address '{from_addr}'...")
 
                 # check if it's coming from already tracked address and append data
                 if self.tracked_addr.get(from_addr):
@@ -149,14 +153,15 @@ class Extractor():
                         # found valid file and got extracted
                         if result.file.path in module.extractor.output:
                             file_n =  module.extractor.output[result.file.path].extracted[result.offset].files[0]
-                            self.logger.info(f"Found file ({result.description}) from address '{addr}', \
-                                                saved to '{file_n}'...")
-                            self.blob_exp.files_c += 1
+                            self.logger.info(f"Found file ({result.description}) from address '{addr}', "\
+                                                f"saved to '{file_n}'...")
+                            self.stats.files_c += 1
+                            self.stats.addr_file_c += 1
                 # remove tmp data file
                 os.remove(tmp_n)
             except Exception as e:
-                self.logger.error(f"Unexpected error while extracting files from\
-                                    transaction addresses, from '{addr}': {e}")
+                self.logger.error(f"Unexpected error while extracting files from "\
+                                    f"transaction addresses, from '{addr}': {e}")
                 self.logger.error_exit()
 
         return
@@ -184,7 +189,7 @@ class Extractor():
     # check ignored file format arg
     def get_ignored_fmts(self, ign_fmt):
         # either the default file formats or the user given ones
-        if 'default_file_fmt' in self.blob_exp.args.ignored_fmt:
+        if 'default_file_fmt' in ign_fmt:
             ign_fmt = self.IGNORED_FMTS
 
         # canonicalize file formats to lowercase
