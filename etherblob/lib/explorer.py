@@ -4,6 +4,8 @@ from etherscan import Etherscan
 from etherblob.lib.extractor import Extractor
 from etherblob.lib.stats import Stats
 from etherblob.utils.log import Logger
+from etherblob.utils.wrappers import ends_gracefully
+
 
 class EtherBlobExplorer():
     EXT_DIR = "ext_{}-{}"                   # extracted files dir
@@ -24,21 +26,20 @@ class EtherBlobExplorer():
                                                             args.end_block,
                                                             args.timestamps
                                                         )
-        # copy starting block id, last retry's time power base and other counters
+        # copy starting block id and last retry's time power base
         self.block_id = args.start_block
         self.last_retry_t = 2
-        self.files_c = 0
-        self.trans_c = 0
 
         # handler to transaction file if enabled
         self.trans_file = None
 
         # start stat engine and extractor passing reference to this same instance
-        self.extractor = Extractor(self)
         self.stats = Stats(self)
+        self.extractor = Extractor(self)
 
 
     # main querying engine
+    @ends_gracefully
     def run_engine(self):
         self.logger.info("Started EtherBlobExplorer engine...")
 
@@ -132,7 +133,7 @@ class EtherBlobExplorer():
                                 closest = 'after'
                                 )
                 self.logger.info(f"Got ending block id '{e_blk}'!")
-                s_blk, e_blk = int(s_blk, 16), int(e_blk, 16)
+                s_blk, e_blk = int(s_blk), int(e_blk)
             except ValueError as e:
                 self.logger.error("Error found while passing block IDs to ints!")
                 self.logger.error_exit()
