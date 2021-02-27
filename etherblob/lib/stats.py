@@ -3,7 +3,7 @@ from time import time
 class Stats():
     WAIT_TIME = 60      # time to wait until showing metrics
 
-    def __init__(blob_exp):
+    def __init__(self, blob_exp):
         self.logger = blob_exp.logger
         self.blob_exp = blob_exp
         self.total_blocks = blob_exp.args.end_block - blob_exp.args.start_block
@@ -14,7 +14,7 @@ class Stats():
 
         # message to show every 60s
         self.cycle_msg = f"Parsed {{}}/{self.total_blocks} blocks ({{}} [block]/[min]), "
-        self.cycle_msg += f" found {self.blob_exp.file_c} files so far"
+        self.cycle_msg += f" found {self.blob_exp.files_c} files so far"
 
     # show overall progress metrics since a certain time
     def show_cycle_metrics(self):
