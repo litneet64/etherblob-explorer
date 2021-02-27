@@ -14,7 +14,7 @@ class EtherBlobExplorer():
     def __init__(self, args):
         # get logger, get api key and etherscan object, create extracted files' dir
         self.args = args
-        self.logger = Logger.logging_setup(args.start_block, args.end_block, args.out_log)
+        self.logger = Logger(args)
         self.ext_dir = self.create_ext_dir(args.start_block, args.end_block, args.output_dir)
         self.api_key = self.get_apikey(args.api_key, args.api_key_path)
         self.eth_scan = Etherscan(self.api_key)
@@ -40,6 +40,8 @@ class EtherBlobExplorer():
 
     # main querying engine
     def run_engine(self):
+        self.logger.info("Started EtherBlobExplorer engine...")
+
         # if enabled, get file for saved transactions
         if self.args.save_transactions:
             self.trans_file = open(self.TRANS_FILE, "+w")
@@ -102,7 +104,7 @@ class EtherBlobExplorer():
     # create dir for extracted files
     def create_ext_dir(self, s_blk, e_blk, ext_dir):
         if ext_dir == "default_ext_dir":
-            ext_dir = EXT_DIR.format(s_blk, e_blk)
+            ext_dir = self.EXT_DIR.format(s_blk, e_blk)
 
         self.logger.info(f"Creating dir for files at '{ext_dir}'...")
         try:
@@ -130,6 +132,10 @@ class EtherBlobExplorer():
                                 closest = 'after'
                                 )
                 self.logger.info(f"Got ending block id '{e_blk}'!")
+                s_blk, e_blk = int(s_blk, 16), int(e_blk, 16)
+            except ValueError as e:
+                self.logger.error("Error found while passing block IDs to ints!")
+                self.logger.error_exit()
             except Exception as e:
                 self.logger.error("Couldn't resolve timestamps to block ids!")
                 self.logger.error_exit()
