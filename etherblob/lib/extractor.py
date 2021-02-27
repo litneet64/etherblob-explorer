@@ -8,7 +8,7 @@ class Extractor():
     IGNORED_FMTS = ["data", "Non-ISO", "ISO-8859 text"]     # default ignored file formats
     EXT_FILE_NAME = "{}/file_{{}}"                          # generic extracted file name
 
-    def __init__(blob_exp):
+    def __init__(self, blob_exp):
         # get reference to blob explorer object and copy frequently used objects
         self.blob_exp = blob_exp
         self.logger = blob_exp.logger
@@ -23,7 +23,7 @@ class Extractor():
 
 
     # generic file format recognition
-    def get_file_format_and_extract(raw_data, ext_type, id):
+    def get_file_format_and_extract(self, raw_data, ext_type, id):
         # double format string: data format, trans/block phrase, id and outfile
         gen_msg = "Found interesting file ({{}}) {} '{{}}', extracted to '{{}}'..."
 
@@ -38,14 +38,14 @@ class Extractor():
         # check for magic bytes or file header
         file_fmt = magic.from_buffer(raw_data)
         if self.not_ignored_format(file_fmt):
-            ext_file = self.ext_file_name.format(self.blob_exp.file_c)
+            ext_file = self.ext_file_name.format(self.blob_exp.files_c)
             self.logger.info(log_msg.format(fmt, id, ext_file))
 
             # and write file into dropped files folder
             with open(ext_file, "+wb") as tmp_file:
                 tmp_file.write(raw_data)
 
-            self.blob_exp.file_c += 1
+            self.blob_exp.files_c += 1
 
         return
 
@@ -151,7 +151,7 @@ class Extractor():
                             file_n =  module.extractor.output[result.file.path].extracted[result.offset].files[0]
                             self.logger.info(f"Found file ({result.description}) from address '{addr}', \
                                                 saved to '{file_n}'...")
-                            self.blob_exp.file_c += 1
+                            self.blob_exp.files_c += 1
                 # remove tmp data file
                 os.remove(tmp_n)
             except Exception as e:
@@ -173,7 +173,7 @@ class Extractor():
 
 
     # parse raw api-given data into bytes
-    def parse_raw_data(raw_hex_data):
+    def parse_raw_data(self, raw_hex_data):
         hex_data = int(raw_hex_data, 16)
         data_size = ceil(log(hex_data, 2) / 8)
         data = hex_data.to_bytes(data_size, byteorder="big")
