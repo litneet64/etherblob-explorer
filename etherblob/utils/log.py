@@ -4,7 +4,11 @@ import sys
 class Logger():
     FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
     OUT_LOG = "etherblob_{}-{}.log"
-    logger = None
+
+
+    def __init__(self, args):
+        self.logger = self.logging_setup(args.start_block, args.end_block, args.out_log)
+
 
     # setup logging config for stdout and a file
     @classmethod
@@ -30,13 +34,28 @@ class Logger():
 
         root_log.setLevel(logging.INFO)
 
-        # save inside class
-        self.logger = root_log
-
         return root_log
 
+
     # wrapper around exit with logging message
-    @classmethod
-    def error_exit(cls):
-        self.logger.error("Exiting...")
+    def error_exit(self):
+        self.error("Exiting...")
         exit(127)
+
+    # wrapper around 'logging' info for Logger class
+    def info(self, msg):
+        self.logger.info(msg)
+
+        return
+
+    # wrapper around 'logging' warning for Logger class
+    def warning(self, msg):
+        self.logger.warning(msg)
+
+        return
+
+    # wrapper around 'logging' error for Logger class
+    def error(self, msg):
+        self.logger.error(msg)
+
+        return
