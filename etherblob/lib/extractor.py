@@ -13,6 +13,7 @@ class Extractor():
         self.logger = blob_exp.logger
         self.stats = blob_exp.stats
         self.trans_file = blob_exp.trans_file
+        self.ext_dir = blob_exp.ext_dir
 
         # parse extracted file name and ignored file formats
         self.ext_file_name = self.get_ext_file_path(blob_exp.ext_dir)
@@ -20,34 +21,6 @@ class Extractor():
 
         # interesting addresses that smuggled data on 'to' field in transaction
         self.tracked_addr = {}
-
-
-    # generic file format recognition
-    def get_file_format_and_extract(self, raw_data, ext_type, id):
-        # double format string: data format, trans/block phrase, id and outfile
-        gen_msg = "Found interesting file ({{}}) {} '{{}}', extracted to '{{}}'..."
-
-        # format logging string
-        if ext_type == "transaction":
-            log_msg = gen_msg.format("inside transaction")
-        elif ext_type == "block":
-            log_msg = gen_msg.format("on block")
-        else:
-            raise Exception("invalid extraction type!")
-
-        # check for magic bytes or file header
-        file_fmt = magic.from_buffer(raw_data)
-        if self.not_ignored_format(file_fmt):
-            ext_file = self.ext_file_name.format(self.stats.files_c)
-            self.logger.info(log_msg.format(file_fmt, id, ext_file))
-
-            # and write file into dropped files folder
-            with open(ext_file, "+wb") as tmp_file:
-                tmp_file.write(raw_data)
-
-            self.stats.files_c += 1
-
-        return
 
 
     # attempt to extract files from transactions' input data
@@ -60,7 +33,7 @@ class Extractor():
             try:
                 # parse input data and search for files
                 data = self.parse_raw_data(trans_obj.get('input'))
-                self.get_file_format_and_extract(data, "transaction", trans_hash)
+                self.search_and_extract(data, "transaction", trans_hash)
 
             except ValueError as e:
                 # skip when no input data is found
@@ -78,6 +51,44 @@ class Extractor():
                     self.trans_file.write("\n")
 
                 self.stats.trans_c += 1
+
+        return
+
+
+    # search for files using binwalk on harvested data string coming from interesting 'from' address
+    def extract_from_trans_address(self):
+        self.logger.info("Starting extraction for 'to' addresses...")
+
+        for addr,data in self.tracked_addr.items():
+            try:
+                # check on tracked addresses for embedded files and extract them
+                files = self.get_embedded_files(data, addr)
+                for file_n, file_fmt in files:
+                    self.logger.info(f"Found file ({file_fmt}) from address '{addr}', "\
+                                            f"saved to '{file_n}'...")
+                    self.stats.addr_file_c += 1
+            except Exception as e:
+                self.logger.error(f"Unexpected error while extracting files from "\
+                                    f"transaction addresses, from '{addr}': {e}")
+                self.logger.error_exit()
+
+        return
+
+
+    # attempt to extract files from 'extra data' field on block information
+    def extract_from_block(self, blk_info):
+        # get block id
+        blk_id = int(blk_info.get('number'), 16)
+
+        try:
+            # get block input data and search for files
+            data = self.parse_raw_data(blk_info.get('extraData'))
+            self.search_and_extract(data, "block", blk_id)
+        except ValueError:
+            pass
+        except Exception as e:
+            self.logger.error(f"Unexpected error found parsing extra data on block '{blk_id}': {e}")
+            self.logger.error_exit()
 
         return
 
@@ -118,53 +129,93 @@ class Extractor():
         return
 
 
-    # attempt to extract files from 'extra data' field on block information
-    def extract_from_block(self, blk_info):
-        # get block id
-        blk_id = int(blk_info.get('number'), 16)
+    # main file format recognition and extraction method
+    def search_and_extract(self, raw_data, ext_type, id):
+        # double format string: data format, trans/block phrase, id and outfile
+        gen_msg = "Found interesting file ({{}}) {} '{{}}', extracted to '{{}}'..."
 
-        try:
-            # get block input data and search for files
-            data = self.parse_raw_data(blk_info.get('extraData'))
-            self.get_file_format_and_extract(data, "block", blk_id)
-        except ValueError:
-            pass
-        except Exception as e:
-            self.logger.error(f"Unexpected error found parsing extra data on block '{blk_id}': {e}")
-            self.logger.error_exit()
+        # format logging string
+        if ext_type == "transaction":
+            log_msg = gen_msg.format("inside transaction")
+        elif ext_type == "block":
+            log_msg = gen_msg.format("on block")
+        else:
+            raise Exception("invalid extraction type!")
 
-        return
+        # check for embedded files inside data via binwalk
+        emb_files = self.get_embedded_files(raw_data, id)
+        for file_n, file_fmt in emb_files:
+            self.logger.info(log_msg.format(file_fmt, id, file_n))
 
-
-    # search for files using binwalk on harvested data string coming from interesting 'from' address
-    def extract_from_trans_address(self):
-        self.logger.info("Starting extraction for 'to' addresses...")
-
-        for addr,data in self.tracked_addr.items():
-            # create tmp file for usage with binwalk and write data into it
-            tmp_n = f"tmp_{addr}"
-            with open(tmp_n, "+wb") as tmp_file:
-                tmp_file.write(data)
-
-            try:
-                # check inside data file for embedded files and extract them
-                for module in binwalk.scan(tmp_n, signature=True, quiet=True, extract=True):
-                    for result in module.results:
-                        # found valid file and got extracted
-                        if result.file.path in module.extractor.output:
-                            file_n =  module.extractor.output[result.file.path].extracted[result.offset].files[0]
-                            self.logger.info(f"Found file ({result.description}) from address '{addr}', "\
-                                                f"saved to '{file_n}'...")
-                            self.stats.files_c += 1
-                            self.stats.addr_file_c += 1
-                # remove tmp data file
-                os.remove(tmp_n)
-            except Exception as e:
-                self.logger.error(f"Unexpected error while extracting files from "\
-                                    f"transaction addresses, from '{addr}': {e}")
-                self.logger.error_exit()
+        # check for magic bytes or file header
+        header_file = self.get_file_via_headers(raw_data)
+        # if we found file via previous method and haven't found anything via binwalk
+        if header_file and not emb_files:
+            file = header_file.popitem()
+            self.logger.info(log_msg.format(file[1], id, file[0]))
 
         return
+
+
+    # search and extract embedded files in data via binwalk
+    def get_embedded_files(self, raw_data, id):
+        # create tmp file for usage with binwalk api
+        tmp_n = f"tmp_{id}"
+        with open(tmp_n, "+wb") as tmp_file:
+            tmp_file.write(raw_data)
+
+        files_found = {}
+
+        # search and extract files
+        binwalk_res = binwalk.scan(tmp_n, signature=True, quiet=True, extract=True,
+                                    dd='.*', directory=self.ext_dir)
+
+        # traverse results
+        for module in binwalk_res:
+            for result in module.results:
+                # found valid file and extracted it
+                if result.file.path in module.extractor.output:
+                    ext_out = module.extractor.output[result.file.path]
+
+                    # if file got 'carved out'
+                    if result.offset in ext_out.carved:
+                        file_n = ext_out.carved[result.offset]
+
+                    # otherwise it got extracted via binwalk plugins
+                    if result.offset in ext_out.extracted:
+                        file_n = ext_out.extracted[result.offset].files[0]
+
+                    # change name to our regular name convention
+                    ext_file = self.ext_file_name.format(self.stats.files_c)
+                    os.rename(file_n, ext_file)
+
+                    self.stats.files_c += 1
+                    files_found[ext_file] = result.description
+
+        # remove tmp data file
+        os.remove(tmp_n)
+
+        return files_found
+
+
+    # search and extract file via magic bytes or file header
+    def get_file_via_headers(self, raw_data):
+        found_file = {}
+
+        # get file format with 'file' linux util
+        file_fmt = magic.from_buffer(raw_data)
+        # if not in ignored file format
+        if self.not_ignored_format(file_fmt):
+            ext_file = self.ext_file_name.format(self.stats.files_c)
+
+            # and write file into dropped files folder
+            with open(ext_file, "+wb") as tmp_file:
+                tmp_file.write(raw_data)
+
+                self.stats.files_c += 1
+                found_file[ext_file] = file_fmt
+
+        return found_file
 
 
     # check if given file format is on list
