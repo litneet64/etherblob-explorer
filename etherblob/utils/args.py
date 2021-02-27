@@ -25,7 +25,7 @@ class Args():
             exit(127)
 
         # assure transaction saving is only enabled if extraction from transactions mode is enabled too
-        if (args.save_transactions == False) and args.transactions:
+        if (args.transactions == False) and args.save_transactions:
             print("Can't save transactions without transaction extracting mode!")
             exit(127)
 
@@ -39,9 +39,9 @@ class Args():
                 epilog = 'Created by litneet64. Version 1.0.0')
 
         # start block
-        parser.add_argument('start block', type = int, help = 'Start of block id range.')
+        parser.add_argument('start_block', type = int, help = 'Start of block id range.')
         # end block
-        parser.add_argument('end block', type = int, help = 'End of block id range.')
+        parser.add_argument('end_block', type = int, help = 'End of block id range.')
 
         # enable search on transaction inputs
         parser.add_argument('--transactions', action = 'store_true', help = 'Search for \
@@ -62,22 +62,22 @@ class Args():
         # interpret start and end block ids as timestamps
         parser.add_argument('-t', '--timestamps', action = 'store_true', help = 'If enabled, then start and \
                 end block IDs are interpreted as UNIX timestamps that are then resolved to the closest \
-                commited blocks for that specific time.')
+                commited blocks for those specific times.')
 
         # api key path
-        parser.add_argument('-K', '--api-key-path', type = string, help = 'Path to file with Etherscan \
+        parser.add_argument('-K', '--api-key-path', type = str, help = 'Path to file with Etherscan \
                 API key for queries.', default = ".api-key")
 
         # api key
-        parser.add_argument('-k', '--api-key', type = string, help = 'Etherscan API key as parameter. \
+        parser.add_argument('-k', '--api-key', type = str, help = 'Etherscan API key as parameter. \
                 If given then \'--api-key-path\' is ignored.', default = 'default_api_key')
 
         # extracted files' output directory
-        parser.add_argument('-D', '--output-dir', type = string, help = 'Out-dir for extracted files.',
+        parser.add_argument('-D', '--output-dir', type = str, help = 'Out-dir for extracted files.',
                 default = "default_ext_dir")
 
         # output log file
-        parser.add_argument('-o', '--out-log', type = string, help = 'Out-file for logs',
+        parser.add_argument('-o', '--out-log', type = str, help = 'Out-file for logs',
                 default = "default_log_file")
 
         # save all transactions and their info
