@@ -2,7 +2,7 @@
 
 import etherblob
 from etherblob.lib.explorer import EtherBlobExplorer
-from etherblob.utils.arg import Args
+from etherblob.utils.args import Args
 
 
 if __name__ == "__main__":
