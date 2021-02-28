@@ -144,7 +144,7 @@ class Extractor():
 
         # check for embedded files inside data via binwalk
         emb_files = self.get_embedded_files(raw_data, id)
-        for file_n, file_fmt in emb_files:
+        for file_n, file_fmt in emb_files.items():
             self.logger.info(log_msg.format(file_fmt, id, file_n))
 
         # check for magic bytes or file header
@@ -182,12 +182,15 @@ class Extractor():
                         file_n = ext_out.carved[result.offset]
 
                     # otherwise it got extracted via binwalk plugins
-                    if result.offset in ext_out.extracted:
+                    elif result.offset in ext_out.extracted:
                         file_n = ext_out.extracted[result.offset].files[0]
 
                     # change name to our regular name convention
                     ext_file = self.ext_file_name.format(self.stats.files_c)
                     os.rename(file_n, ext_file)
+
+                    # remove binwalk-created dir
+                    os.rmdir(f"{self.ext_dir}/_{tmp_n}.extracted")
 
                     self.stats.files_c += 1
                     files_found[ext_file] = result.description
