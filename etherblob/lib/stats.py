@@ -1,4 +1,5 @@
 from time import time
+from math import log
 
 class Stats():
     WAIT_TIME = 60      # time to wait until showing metrics
@@ -60,3 +61,24 @@ class Stats():
             self.logger.info(f"Total of files found on interesting addresses: {self.addr_file_c}")
 
         return
+
+
+    # calculate shannon entropy for files as byte arrays
+    @classmethod
+    def entropy(cls, byte_arr):
+        ent = 0.0
+        freq = {}
+        size = len(byte_arr)
+
+        # get frequency for every byte
+        for byte in byte_arr:
+            if not freq.get(byte):
+                freq[byte] = 0
+            freq[byte] += 1
+
+        # calculate entropy
+        for f in freq.values():
+            f = f / size
+            ent += f * log(f, 2)
+
+        return -1 * ent
