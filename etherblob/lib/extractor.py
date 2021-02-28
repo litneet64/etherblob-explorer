@@ -132,7 +132,7 @@ class Extractor():
     # main file format recognition and extraction method
     def search_and_extract(self, raw_data, ext_type, id):
         # double format string: data format, trans/block phrase, id and outfile
-        gen_msg = "Found interesting file ({{}}) {} '{{}}', extracted to '{{}}'..."
+        gen_msg = "Found interesting file ({{}}) {} '{{}}' ({{}}), extracted to '{{}}'..."
 
         # format logging string
         if ext_type == "transaction":
@@ -145,14 +145,22 @@ class Extractor():
         # check for embedded files inside data via binwalk
         emb_files = self.get_embedded_files(raw_data, id)
         for file_n, file_fmt in emb_files.items():
-            self.logger.info(log_msg.format(file_fmt, id, file_n))
+            self.logger.info(log_msg.format(file_fmt, id, "embedded", file_n))
 
-        # check for magic bytes or file header
-        header_file = self.get_file_via_headers(raw_data)
-        # if we found file via previous method and haven't found anything via binwalk
-        if header_file and not emb_files:
-            file = header_file.popitem()
-            self.logger.info(log_msg.format(file[1], id, file[0]))
+        # check for magic bytes or file header and haven't found anything via binwalk
+        if not emb_files and (header_f := self.get_file_via_headers(raw_data)):
+            file = header_f.popitem()
+            self.logger.info(log_msg.format(file[1], id, "via file header", file[0]))
+
+        # haven't found anything via binwalk nor file headers
+        elif strings := self.dump_strings(raw_data):
+            file = strings.popitem()
+            self.logger.info(log_msg.format(file[1], id, "via dumped strings", file[0]))
+
+        # there's still the (slim) chance that utf-8 text could be hiding in that data
+        elif valid_file := self.get_file_via_entropy(raw_data):
+            file = valid_file.popitem()
+            self.logger.info(log_msg.format(file[1], id, "via entropy calc", file[0]))
 
         return
 
@@ -219,6 +227,64 @@ class Extractor():
                 found_file[ext_file] = file_fmt
 
         return found_file
+
+
+    # search and extract ascii strings into file
+    def dump_strings(self, raw_data):
+        found_strings = {}
+
+        # strings were found
+        if strings := self.get_strings(raw_data):
+            ext_file = self.ext_file_name.format(self.stats.files_c)
+            # save all into one file
+            with open(ext_file, "+w") as str_file:
+                for f_str in strings:
+                    str_file.write(f_str + "\n")
+
+            self.stats.files_c += 1
+            found_strings[ext_file] = "ASCII Strings"
+
+        return found_strings
+
+
+    # get entropy and extract file if mostly natural language text is found
+    def get_file_via_entropy(self, raw_data):
+        valid_files = {}
+        entropy = self.stats.entropy(raw_data)
+
+        # range in natural language text
+        if entropy >= 3.5 and entropy <= 5.0:
+            ext_file = self.ext_file_name.format(self.stats.files_c)
+            # save all data into file
+            with open(ext_file, "+wb") as file:
+                file.write(raw_data)
+
+            self.stats.files_c += 1
+            valid_files[ext_file] = "Possible UTF-8 text"
+
+        return valid_files
+
+
+    # simulate the 'strings' linux util
+    def get_strings(self, raw_data):
+        strings = []
+        final_strings = []
+        curr_str = ""
+
+        for byte in raw_data:
+            # check for displayable ascii bytes
+            if byte >= 0x20 and byte < 0x7F:
+                curr_str += chr(byte)
+            elif curr_str != "":
+                    strings.append(curr_str)
+                    curr_str = ""
+
+        # return strings longer than certain length
+        for ascii_str in strings:
+            if len(ascii_str) >= 8:
+                final_strings.append(ascii_str)
+
+        return final_strings
 
 
     # check if given file format is on list
