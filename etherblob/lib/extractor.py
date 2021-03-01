@@ -7,47 +7,30 @@ from math import log, ceil
 class Extractor():
     IGNORED_FMTS = ["data", "Non-ISO", "ISO-8859 text"]     # default ignored file formats
     EXT_FILE_NAME = "{}/file_{{}}"                          # generic extracted file name
+    STR_MIN_SIZE = 8                                        # min string size for taking into account when 'strings' is enabled
+    NL_ENT_MIN = 3.5                                        # min entropy limit for a natural language
+    NL_ENT_MAX = 5.0                                        # max entropy limit for a natural language
+    ENC_ENT_MIN = 7.0                                       # min entropy limit for encrypted/compressed files
+    ENC_ENT_MAX = 8.0                                       # max entropy limit for encrypted/compressed files
 
     def __init__(self, blob_exp):
         # get reference to blob explorer and copy frequently used objects
         self.logger = blob_exp.logger
         self.stats = blob_exp.stats
         self.trans_file = blob_exp.trans_file
+        self.ext_dir = blob_exp.ext_dir
 
         # parse extracted file name and ignored file formats
         self.ext_file_name = self.get_ext_file_path(blob_exp.ext_dir)
         self.ignored_fmt = self.get_ignored_fmts(blob_exp.args.ignored_fmt)
 
+        # get entropy limits, strings arg and embedded flag
+        self.ent_limits = self.get_entropy_limits(blob_exp.args)
+        self.strings = self.get_strings_arg(blob_exp.args)
+        self.embedded = self.get_embedded_arg(blob_exp.args)
+
         # interesting addresses that smuggled data on 'to' field in transaction
         self.tracked_addr = {}
-
-
-    # generic file format recognition
-    def get_file_format_and_extract(self, raw_data, ext_type, id):
-        # double format string: data format, trans/block phrase, id and outfile
-        gen_msg = "Found interesting file ({{}}) {} '{{}}', extracted to '{{}}'..."
-
-        # format logging string
-        if ext_type == "transaction":
-            log_msg = gen_msg.format("inside transaction")
-        elif ext_type == "block":
-            log_msg = gen_msg.format("on block")
-        else:
-            raise Exception("invalid extraction type!")
-
-        # check for magic bytes or file header
-        file_fmt = magic.from_buffer(raw_data)
-        if self.not_ignored_format(file_fmt):
-            ext_file = self.ext_file_name.format(self.stats.files_c)
-            self.logger.info(log_msg.format(file_fmt, id, ext_file))
-
-            # and write file into dropped files folder
-            with open(ext_file, "+wb") as tmp_file:
-                tmp_file.write(raw_data)
-
-            self.stats.files_c += 1
-
-        return
 
 
     # attempt to extract files from transactions' input data
@@ -60,7 +43,7 @@ class Extractor():
             try:
                 # parse input data and search for files
                 data = self.parse_raw_data(trans_obj.get('input'))
-                self.get_file_format_and_extract(data, "transaction", trans_hash)
+                self.search_and_extract(data, "transaction", trans_hash)
 
             except ValueError as e:
                 # skip when no input data is found
@@ -78,6 +61,44 @@ class Extractor():
                     self.trans_file.write("\n")
 
                 self.stats.trans_c += 1
+
+        return
+
+
+    # search for files using binwalk on harvested data string coming from interesting 'from' address
+    def extract_from_trans_address(self):
+        self.logger.info("Starting extraction for 'to' addresses...")
+
+        for addr,data in self.tracked_addr.items():
+            try:
+                # check on tracked addresses for embedded files and extract them
+                files = self.get_embedded_files(data, addr)
+                for file_n, file_fmt in files:
+                    self.logger.info(f"Found file ({file_fmt}) from address '{addr}', "\
+                                            f"saved to '{file_n}'...")
+                    self.stats.addr_file_c += 1
+            except Exception as e:
+                self.logger.error(f"Unexpected error while extracting files from "\
+                                    f"transaction addresses, from '{addr}': {e}")
+                self.logger.error_exit()
+
+        return
+
+
+    # attempt to extract files from 'extra data' field on block information
+    def extract_from_block(self, blk_info):
+        # get block id
+        blk_id = int(blk_info.get('number'), 16)
+
+        try:
+            # get block input data and search for files
+            data = self.parse_raw_data(blk_info.get('extraData'))
+            self.search_and_extract(data, "block", blk_id)
+        except ValueError:
+            pass
+        except Exception as e:
+            self.logger.error(f"Unexpected error found parsing extra data on block '{blk_id}': {e}")
+            self.logger.error_exit()
 
         return
 
@@ -118,53 +139,185 @@ class Extractor():
         return
 
 
-    # attempt to extract files from 'extra data' field on block information
-    def extract_from_block(self, blk_info):
-        # get block id
-        blk_id = int(blk_info.get('number'), 16)
+    # main file format recognition and extraction method
+    def search_and_extract(self, raw_data, ext_type, id):
+        # double format string: data format, trans/block phrase, id and outfile
+        gen_msg = "Found interesting file ({{}}) {} '{{}}' ({{}}), extracted to '{{}}'..."
 
-        try:
-            # get block input data and search for files
-            data = self.parse_raw_data(blk_info.get('extraData'))
-            self.get_file_format_and_extract(data, "block", blk_id)
-        except ValueError:
-            pass
-        except Exception as e:
-            self.logger.error(f"Unexpected error found parsing extra data on block '{blk_id}': {e}")
-            self.logger.error_exit()
+        # format logging string
+        if ext_type == "transaction":
+            log_msg = gen_msg.format("inside transaction")
+        elif ext_type == "block":
+            log_msg = gen_msg.format("on block")
+        else:
+            raise Exception("invalid extraction type!")
 
-        return
+        # if-elif order MATTERS here (from most accurate method to lesser one)
+        # (if embedded enabled) check for embedded files inside data via binwalk
+        if self.embedded and (emb_files := self.get_embedded_files(raw_data, id)):
+            for file_n, file_fmt in emb_files.items():
+                self.logger.info(log_msg.format(file_fmt, id, "found embedded", file_n))
 
+        # (default method) check for magic bytes or file header and haven't found anything via binwalk
+        elif header_f := self.get_file_via_headers(raw_data):
+            file = header_f.popitem()
+            self.logger.info(log_msg.format(file[1], id, "via file header", file[0]))
 
-    # search for files using binwalk on harvested data string coming from interesting 'from' address
-    def extract_from_trans_address(self):
-        self.logger.info("Starting extraction for 'to' addresses...")
+        # (if dump strings enabled) haven't found anything via binwalk nor file headers
+        elif self.strings and (strings := self.dump_strings(raw_data)):
+            file = strings.popitem()
+            self.logger.info(log_msg.format(file[1], id, "via dumped strings", file[0]))
 
-        for addr,data in self.tracked_addr.items():
-            # create tmp file for usage with binwalk and write data into it
-            tmp_n = f"tmp_{addr}"
-            with open(tmp_n, "+wb") as tmp_file:
-                tmp_file.write(data)
-
-            try:
-                # check inside data file for embedded files and extract them
-                for module in binwalk.scan(tmp_n, signature=True, quiet=True, extract=True):
-                    for result in module.results:
-                        # found valid file and got extracted
-                        if result.file.path in module.extractor.output:
-                            file_n =  module.extractor.output[result.file.path].extracted[result.offset].files[0]
-                            self.logger.info(f"Found file ({result.description}) from address '{addr}', "\
-                                                f"saved to '{file_n}'...")
-                            self.stats.files_c += 1
-                            self.stats.addr_file_c += 1
-                # remove tmp data file
-                os.remove(tmp_n)
-            except Exception as e:
-                self.logger.error(f"Unexpected error while extracting files from "\
-                                    f"transaction addresses, from '{addr}': {e}")
-                self.logger.error_exit()
+        # (if entropy search enabled) there's still the (slim) chance that utf-8 text could be hiding in that data
+        elif self.ent_limits and (valid_file := self.get_file_via_entropy(raw_data)):
+            file = valid_file.popitem()
+            self.logger.info(log_msg.format(file[1], id, "via entropy calc", file[0]))
 
         return
+
+
+    # search and extract embedded files in data via binwalk
+    def get_embedded_files(self, raw_data, id):
+        # create tmp file for usage with binwalk api
+        tmp_n = f"tmp_{id}"
+        with open(tmp_n, "+wb") as tmp_file:
+            tmp_file.write(raw_data)
+
+        files_found = {}
+
+        # search and extract files
+        binwalk_res = binwalk.scan(tmp_n, signature=True, quiet=True, extract=True,
+                                    dd='.*', directory=self.ext_dir)
+
+        # traverse results
+        for module in binwalk_res:
+            for result in module.results:
+                # found valid file and extracted it
+                if result.file.path in module.extractor.output:
+                    ext_out = module.extractor.output[result.file.path]
+
+                    # if file got 'carved out'
+                    if result.offset in ext_out.carved:
+                        file_n = ext_out.carved[result.offset]
+
+                    # otherwise it got extracted via binwalk plugins
+                    elif result.offset in ext_out.extracted:
+                        file_n = ext_out.extracted[result.offset].files[0]
+
+                    # change name to our regular name convention
+                    ext_file = self.ext_file_name.format(self.stats.files_c)
+                    os.rename(file_n, ext_file)
+
+                    # remove binwalk-created dir
+                    os.rmdir(f"{self.ext_dir}/_{tmp_n}.extracted")
+
+                    self.stats.files_c += 1
+                    files_found[ext_file] = result.description
+
+        # remove tmp data file
+        os.remove(tmp_n)
+
+        return files_found
+
+
+    # search and extract file via magic bytes or file header
+    def get_file_via_headers(self, raw_data):
+        found_file = {}
+
+        # get file format with 'file' linux util
+        file_fmt = magic.from_buffer(raw_data)
+        # if not in ignored file format
+        if self.not_ignored_format(file_fmt):
+            ext_file = self.ext_file_name.format(self.stats.files_c)
+
+            # and write file into dropped files folder
+            with open(ext_file, "+wb") as tmp_file:
+                tmp_file.write(raw_data)
+
+                self.stats.files_c += 1
+                found_file[ext_file] = file_fmt
+
+        return found_file
+
+
+    # search and extract ascii strings into file
+    def dump_strings(self, raw_data):
+        found_strings = {}
+
+        # strings were found
+        if strings := self.get_strings(raw_data):
+            ext_file = self.ext_file_name.format(self.stats.files_c)
+            # save all into one file
+            with open(ext_file, "+w") as str_file:
+                for f_str in strings:
+                    str_file.write(f_str + "\n")
+
+            self.stats.files_c += 1
+            found_strings[ext_file] = "ASCII Strings"
+
+        return found_strings
+
+
+    # calc entropy and extract file if entropy is between limits
+    def get_file_via_entropy(self, raw_data):
+        valid_files = {}
+        entropy = self.stats.entropy(raw_data)
+
+        # range in given entropy limits
+        if entropy >= self.ent_limits['min'] and entropy <= self.ent_limits['max']:
+            ext_file = self.ext_file_name.format(self.stats.files_c)
+            # save all data into file
+            with open(ext_file, "+wb") as file:
+                file.write(raw_data)
+
+            self.stats.files_c += 1
+            valid_files[ext_file] = self.ent_limits['type']
+
+        return valid_files
+
+
+    # simulate the 'strings' linux util
+    def get_strings(self, raw_data):
+        strings = []
+        final_strings = []
+        curr_str = ""
+
+        for byte in raw_data:
+            # check for displayable ascii bytes
+            if byte >= 0x20 and byte < 0x7F:
+                curr_str += chr(byte)
+            elif curr_str != "":
+                    strings.append(curr_str)
+                    curr_str = ""
+
+        # return strings longer than certain length
+        for ascii_str in strings:
+            if len(ascii_str) >= self.STR_MIN_SIZE:
+                final_strings.append(ascii_str)
+
+        return final_strings
+
+
+    # get entropy limits from args
+    def get_entropy_limits(self, args):
+        limits = {}
+        # set for encrypted/compressed files
+        if args.encrypted:
+            limits['min'], limits['max'] = self.ENC_ENT_MIN, self.ENC_ENT_MAX
+            limits['type'] = "Possible encrypted data"
+        # set for user given limits
+        elif args.custom_entropy != [-1, -1]:
+            limits['min'], limits['max'] = args.custom_entropy
+            limits['type'] = "From custom entropy"
+        # set for unicode string search
+        elif args.unicode:
+            limits['min'], limits['max'] = self.NL_ENT_MIN, self.NL_ENT_MAX
+            limits['type'] = "Possible UTF-8 text"
+
+        if limits:
+            self.logger.info(f"Using entropy limits of '{limits['min']}' and '{limits['max']}' for search...")
+
+        return limits
 
 
     # check if given file format is on list
@@ -175,6 +328,22 @@ class Extractor():
                 return False
 
         return True
+
+
+    # log if strings flag argument is enabled
+    def get_strings_arg(self, args):
+        if args.strings:
+            self.logger.info("Search and dump ASCII strings enabled...")
+
+        return args.strings
+
+
+    # log if embedded flag argument is enabled
+    def get_embedded_arg(self, args):
+        if args.embedded:
+            self.logger.info("Search and extract embedded files enabled...")
+
+        return args.embedded
 
 
     # parse raw api-given data into bytes
