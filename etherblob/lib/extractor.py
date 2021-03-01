@@ -192,30 +192,31 @@ class Extractor():
         # traverse results
         for module in binwalk_res:
             for result in module.results:
+                files_n = []
                 # found valid file and extracted it
                 if result.file.path in module.extractor.output:
                     ext_out = module.extractor.output[result.file.path]
 
                     # if file got 'carved out'
                     if result.offset in ext_out.carved:
-                        file_n = ext_out.carved[result.offset]
+                        files_n.append(ext_out.carved[result.offset])
 
-                    # otherwise it got extracted via binwalk plugins
-                    elif result.offset in ext_out.extracted:
-                        file_n = ext_out.extracted[result.offset].files[0]
+                    # could have also get extracted via binwalk plugins
+                    if result.offset in ext_out.extracted:
+                        files_n.append(ext_out.extracted[result.offset].files[0])
 
-                    # change name to our regular name convention
-                    ext_file = self.ext_file_name.format(self.stats.files_c)
-                    os.rename(file_n, ext_file)
+                    for file in files_n:
+                        # change name to our regular name convention
+                        ext_file = self.ext_file_name.format(self.stats.files_c)
+                        os.rename(file, ext_file)
 
-                    # remove binwalk-created dir
-                    os.rmdir(f"{self.ext_dir}/_{tmp_n}.extracted")
+                        self.stats.files_c += 1
+                        files_found[ext_file] = result.description
 
-                    self.stats.files_c += 1
-                    files_found[ext_file] = result.description
-
-        # remove tmp data file
+        # remove tmp data file and binwalk-created dir if files were found
         os.remove(tmp_n)
+        if files_found:
+            os.rmdir(f"{self.ext_dir}/_{tmp_n}.extracted")
 
         return files_found
 
