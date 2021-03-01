@@ -7,6 +7,11 @@ from math import log, ceil
 class Extractor():
     IGNORED_FMTS = ["data", "Non-ISO", "ISO-8859 text"]     # default ignored file formats
     EXT_FILE_NAME = "{}/file_{{}}"                          # generic extracted file name
+    STR_MIN_SIZE = 8                                        # min string size for taking into account when 'strings' is enabled
+    NL_ENT_MIN = 3.5                                        # min entropy limit for a natural language
+    NL_ENT_MAX = 5.0                                        # max entropy limit for a natural language
+    ENC_ENT_MIN = 7.0                                       # min entropy limit for encrypted/compressed files
+    ENC_ENT_MAX = 8.0                                       # max entropy limit for encrypted/compressed files
 
     def __init__(self, blob_exp):
         # get reference to blob explorer and copy frequently used objects
@@ -18,6 +23,11 @@ class Extractor():
         # parse extracted file name and ignored file formats
         self.ext_file_name = self.get_ext_file_path(blob_exp.ext_dir)
         self.ignored_fmt = self.get_ignored_fmts(blob_exp.args.ignored_fmt)
+
+        # get entropy limits, strings arg and embedded flag
+        self.ent_limits = self.get_entropy_limits(blob_exp.args)
+        self.strings = self.get_strings_arg(blob_exp.args)
+        self.embedded = self.get_embedded_arg(blob_exp.args)
 
         # interesting addresses that smuggled data on 'to' field in transaction
         self.tracked_addr = {}
@@ -142,23 +152,24 @@ class Extractor():
         else:
             raise Exception("invalid extraction type!")
 
-        # check for embedded files inside data via binwalk
-        emb_files = self.get_embedded_files(raw_data, id)
-        for file_n, file_fmt in emb_files.items():
-            self.logger.info(log_msg.format(file_fmt, id, "embedded", file_n))
+        # if-elif order MATTERS here (from most accurate method to lesser one)
+        # (if embedded enabled) check for embedded files inside data via binwalk
+        if self.embedded and (emb_files := self.get_embedded_files(raw_data, id)):
+            for file_n, file_fmt in emb_files.items():
+                self.logger.info(log_msg.format(file_fmt, id, "found embedded", file_n))
 
-        # check for magic bytes or file header and haven't found anything via binwalk
-        if not emb_files and (header_f := self.get_file_via_headers(raw_data)):
+        # (default method) check for magic bytes or file header and haven't found anything via binwalk
+        elif header_f := self.get_file_via_headers(raw_data):
             file = header_f.popitem()
             self.logger.info(log_msg.format(file[1], id, "via file header", file[0]))
 
-        # haven't found anything via binwalk nor file headers
-        elif strings := self.dump_strings(raw_data):
+        # (if dump strings enabled) haven't found anything via binwalk nor file headers
+        elif self.strings and (strings := self.dump_strings(raw_data)):
             file = strings.popitem()
             self.logger.info(log_msg.format(file[1], id, "via dumped strings", file[0]))
 
-        # there's still the (slim) chance that utf-8 text could be hiding in that data
-        elif valid_file := self.get_file_via_entropy(raw_data):
+        # (if entropy search enabled) there's still the (slim) chance that utf-8 text could be hiding in that data
+        elif self.ent_limits and (valid_file := self.get_file_via_entropy(raw_data)):
             file = valid_file.popitem()
             self.logger.info(log_msg.format(file[1], id, "via entropy calc", file[0]))
 
@@ -247,20 +258,20 @@ class Extractor():
         return found_strings
 
 
-    # get entropy and extract file if mostly natural language text is found
+    # calc entropy and extract file if entropy is between limits
     def get_file_via_entropy(self, raw_data):
         valid_files = {}
         entropy = self.stats.entropy(raw_data)
 
-        # range in natural language text
-        if entropy >= 3.5 and entropy <= 5.0:
+        # range in given entropy limits
+        if entropy >= self.ent_limits['min'] and entropy <= self.ent_limits['max']:
             ext_file = self.ext_file_name.format(self.stats.files_c)
             # save all data into file
             with open(ext_file, "+wb") as file:
                 file.write(raw_data)
 
             self.stats.files_c += 1
-            valid_files[ext_file] = "Possible UTF-8 text"
+            valid_files[ext_file] = self.ent_limits['type']
 
         return valid_files
 
@@ -281,10 +292,32 @@ class Extractor():
 
         # return strings longer than certain length
         for ascii_str in strings:
-            if len(ascii_str) >= 8:
+            if len(ascii_str) >= self.STR_MIN_SIZE:
                 final_strings.append(ascii_str)
 
         return final_strings
+
+
+    # get entropy limits from args
+    def get_entropy_limits(self, args):
+        limits = {}
+        # set for encrypted/compressed files
+        if args.encrypted:
+            limits['min'], limits['max'] = self.ENC_ENT_MIN, self.ENC_ENT_MAX
+            limits['type'] = "Possible encrypted data"
+        # set for user given limits
+        elif args.custom_entropy != [-1, -1]:
+            limits['min'], limits['max'] = args.custom_entropy
+            limits['type'] = "From custom entropy"
+        # set for unicode string search
+        elif args.unicode:
+            limits['min'], limits['max'] = self.NL_ENT_MIN, self.NL_ENT_MAX
+            limits['type'] = "Possible UTF-8 text"
+
+        if limits:
+            self.logger.info(f"Using entropy limits of '{limits['min']}' and '{limits['max']}' for search...")
+
+        return limits
 
 
     # check if given file format is on list
@@ -295,6 +328,22 @@ class Extractor():
                 return False
 
         return True
+
+
+    # log if strings flag argument is enabled
+    def get_strings_arg(self, args):
+        if args.strings:
+            self.logger.info("Search and dump ASCII strings enabled...")
+
+        return args.strings
+
+
+    # log if embedded flag argument is enabled
+    def get_embedded_arg(self, args):
+        if args.embedded:
+            self.logger.info("Search and extract embedded files enabled...")
+
+        return args.embedded
 
 
     # parse raw api-given data into bytes
