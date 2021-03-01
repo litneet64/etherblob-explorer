@@ -55,7 +55,7 @@ class Args():
     def setup_argparser(cls):
         parser = argparse.ArgumentParser(description = 'Tool to search and extract blob \
                 files on the Ethereum Network.',
-                epilog = 'Created by litneet64. Version 1.0.0')
+                epilog = 'Official GitHub repo \'https://github.com/litneet64/etherblob-explorer\'')
 
         # start block
         parser.add_argument('start_block', type = int, help = 'Start of block id range.')
@@ -141,6 +141,6 @@ class Args():
                 makes case-insensitive matches.', nargs = '*', default = ["default_file_fmt"])
 
         # print version and exit
-        parser.add_argument('--version', action = 'version', version = 'EtherBlob Explorer 1.0.0')
+        parser.add_argument('--version', action = 'version', version = 'EtherBlob Explorer 1.0.1')
 
         return parser.parse_args()
