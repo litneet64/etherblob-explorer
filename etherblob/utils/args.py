@@ -16,9 +16,6 @@ class Args():
         if not args.blocks and not args.addresses:
             args.transactions = True
 
-        # add 'data' to ignored file formats
-        args.ignored_fmt.append("data")
-
         # assure ending range ID bigger than starting one
         if args.end_block < args.start_block:
             print("Invalid args: ending block ID/timetamp should be bigger than starting one!")
@@ -97,7 +94,7 @@ class Args():
 
         # get encrypted data
         parser.add_argument('--encrypted', action = 'store_true', help = 'If enabled, attempt \
-                to search and dump encrypted data found via different search methods \
+                to search and dump encrypted/compressed data found via different search methods \
                 (blocks, transactions, addresses) using Shannon\'s Entropy (between 7.0 and 8.0) \
                 if no other discernible file is found first on that data.')
 
@@ -138,7 +135,8 @@ class Args():
         parser.add_argument('-i', '--ignored-fmt',  help = 'Ignored file formats for extraction. \
                 Default ignored/common file formats are \'ISO-8859 text\' and \'Non-ISO extended-ASCII \
                 text\'. The \'data\' file format is always ignored. Accepts file format substrings and \
-                makes case-insensitive matches.', nargs = '*', default = ["default_file_fmt"])
+                makes case-insensitive matches. \'*\' is a wildcard to ignore all file formats.', \
+                nargs = '*', default = ["default_file_fmt"])
 
         # print version and exit
         parser.add_argument('--version', action = 'version', version = 'EtherBlob Explorer 1.0.1')
