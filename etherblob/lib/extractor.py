@@ -6,13 +6,14 @@ import shutil
 from math import log, ceil
 
 class Extractor():
-    IGNORED_FMTS = ["data", "Non-ISO", "ISO-8859 text"]     # default ignored file formats
-    EXT_FILE_NAME = "{}/file_{{}}"                          # generic extracted file name
-    STR_MIN_SIZE = 8                                        # min string size for taking into account when 'strings' is enabled
-    NL_ENT_MIN = 3.5                                        # min entropy limit for a natural language
-    NL_ENT_MAX = 5.0                                        # max entropy limit for a natural language
-    ENC_ENT_MIN = 7.0                                       # min entropy limit for encrypted/compressed files
-    ENC_ENT_MAX = 8.0                                       # max entropy limit for encrypted/compressed files
+    IGNORE_DEFAULT_FMTS = ["^Non-ISO", "^ISO-8859 text"]  # default ignored file formats
+    IGNORE_ALL_WILDCARD = ["ignore_all"]                  # ignore all file formats wildcard
+    EXT_FILE_NAME = "{}/file_{{}}"                        # generic extracted file name
+    STR_MIN_SIZE = 8                                      # min string size for taking into account when 'strings' is enabled
+    NL_ENT_MIN = 3.5                                      # min entropy limit for a natural language
+    NL_ENT_MAX = 5.0                                      # max entropy limit for a natural language
+    ENC_ENT_MIN = 7.0                                     # min entropy limit for encrypted/compressed files
+    ENC_ENT_MAX = 8.0                                     # max entropy limit for encrypted/compressed files
 
     def __init__(self, blob_exp):
         # get reference to blob explorer and copy frequently used objects
@@ -121,7 +122,7 @@ class Extractor():
                 file_fmt = magic.from_buffer(data)
 
                 # if we got file header or magic bytes at head of file...
-                if self.not_ignored_format(file_fmt):
+                if not self.ignored_format(file_fmt):
                     # and it's first time finding this 'from' address
                     if not self.tracked_addr.get(from_addr):
                         self.tracked_addr[from_addr] = b""
@@ -185,6 +186,7 @@ class Extractor():
             tmp_file.write(raw_data)
 
         files_found = {}
+        ignored_file_found = False
 
         # search and extract files
         binwalk_res = binwalk.scan(tmp_n, signature=True, quiet=True, extract=True,
@@ -194,7 +196,8 @@ class Extractor():
         for module in binwalk_res:
             for result in module.results:
                 # check that file format is not one of ignored formats
-                if self.not_ignored_format(result.description):
+                if self.ignored_format(result.description):
+                    ignored_file_found = True
                     continue
 
                 files_n = []
@@ -220,7 +223,7 @@ class Extractor():
 
         # remove tmp data file and binwalk-created dir if files get extracted
         os.remove(tmp_n)
-        if files_found:
+        if files_found or ignored_file_found:
             shutil.rmtree(f"{self.ext_dir}/_{tmp_n}.extracted")
 
         return files_found
@@ -233,7 +236,7 @@ class Extractor():
         # get file format with 'file' linux util
         file_fmt = magic.from_buffer(raw_data)
         # if not in ignored file format
-        if self.not_ignored_format(file_fmt):
+        if not self.ignored_format(file_fmt):
             ext_file = self.ext_file_name.format(self.stats.files_c)
 
             # and write file into dropped files folder
@@ -310,7 +313,7 @@ class Extractor():
         # set for encrypted/compressed files
         if args.encrypted:
             limits['min'], limits['max'] = self.ENC_ENT_MIN, self.ENC_ENT_MAX
-            limits['type'] = "Possible encrypted data"
+            limits['type'] = "Possible encrypted/compressed data"
         # set for user given limits
         elif args.custom_entropy != [-1, -1]:
             limits['min'], limits['max'] = args.custom_entropy
@@ -327,13 +330,17 @@ class Extractor():
 
 
     # check if given file format is on list
-    def not_ignored_format(self, complete_file_fmt):
+    def ignored_format(self, complete_file_fmt):
+        # return instantly if ignore-all-formats wildcard was given
+        if self.ignored_fmt == self.IGNORE_ALL_WILDCARD:
+            return True
+
         for fmt in self.ignored_fmt:
             m = re.search(fmt, complete_file_fmt.lower())
             if m:
-                return False
+                return True
 
-        return True
+        return False
 
 
     # log if strings flag argument is enabled
@@ -363,12 +370,16 @@ class Extractor():
 
     # check ignored file format arg
     def get_ignored_fmts(self, ign_fmt):
-        # either the default file formats or the user given ones
-        if 'default_file_fmt' in ign_fmt:
-            ign_fmt = self.IGNORED_FMTS
+        # ignore-all file formats wildcard enabled
+        if ign_fmt == ['*']:
+            return self.IGNORE_ALL_WILDCARD
 
-        # canonicalize file formats to lowercase
-        ign_fmt = list(map(str.lower, ign_fmt))
+        # either the default file formats or the user given ones
+        elif ign_fmt == ['default_file_fmt']:
+            ign_fmt = self.IGNORE_DEFAULT_FMTS
+
+        # canonicalize file formats to lowercase (and add data "fmt")
+        ign_fmt = ['^data$'] + list(map(str.lower, ign_fmt))
 
         return ign_fmt
 
