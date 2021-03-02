@@ -198,12 +198,12 @@ class Extractor():
                     ext_out = module.extractor.output[result.file.path]
 
                     # if file got 'carved out'
-                    if result.offset in ext_out.carved:
-                        files_n.append(ext_out.carved[result.offset])
+                    if carved := ext_out.carved.get(result.offset):
+                        files_n.append(carved)
 
                     # could have also get extracted via binwalk plugins
-                    if result.offset in ext_out.extracted:
-                        files_n.append(ext_out.extracted[result.offset].files[0])
+                    if (extracted := ext_out.extracted.get(result.offset)) and extracted.files:
+                        files_n.append(extracted.files[0])
 
                     for file in files_n:
                         # change name to our regular name convention
