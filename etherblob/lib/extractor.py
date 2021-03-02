@@ -2,6 +2,7 @@ import os
 import re
 import magic
 import binwalk
+import shutil
 from math import log, ceil
 
 class Extractor():
@@ -192,6 +193,10 @@ class Extractor():
         # traverse results
         for module in binwalk_res:
             for result in module.results:
+                # check that file format is not one of ignored formats
+                if self.not_ignored_format(result.description):
+                    continue
+
                 files_n = []
                 # found valid file and extracted it
                 if result.file.path in module.extractor.output:
@@ -213,10 +218,10 @@ class Extractor():
                         self.stats.files_c += 1
                         files_found[ext_file] = result.description
 
-        # remove tmp data file and binwalk-created dir if files were found
+        # remove tmp data file and binwalk-created dir if files get extracted
         os.remove(tmp_n)
         if files_found:
-            os.rmdir(f"{self.ext_dir}/_{tmp_n}.extracted")
+            shutil.rmtree(f"{self.ext_dir}/_{tmp_n}.extracted")
 
         return files_found
 
