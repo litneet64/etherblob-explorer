@@ -76,7 +76,7 @@ class Extractor():
                 # check on tracked addresses for embedded files and extract them
                 files = self.get_embedded_files(data, addr)
                 for file_n, file_fmt in files:
-                    self.logger.info(f"Found file ({file_fmt}) from address '{addr}', "\
+                    self.logger.info_file(f"Found file ({file_fmt}) from address '{addr}', "\
                                             f"saved to '{file_n}'...")
                     self.stats.addr_file_c += 1
             except Exception as e:
@@ -158,22 +158,22 @@ class Extractor():
         # (if embedded enabled) check for embedded files inside data via binwalk
         if self.embedded and (emb_files := self.get_embedded_files(raw_data, id)):
             for file_n, file_fmt in emb_files.items():
-                self.logger.info(log_msg.format(file_fmt, id, "found embedded", file_n))
+                self.logger.info_file(log_msg.format(file_fmt, id, "found embedded", file_n))
 
         # (default method) check for magic bytes or file header and haven't found anything via binwalk
         elif header_f := self.get_file_via_headers(raw_data):
             file = header_f.popitem()
-            self.logger.info(log_msg.format(file[1], id, "via file header", file[0]))
+            self.logger.info_file(log_msg.format(file[1], id, "via file header", file[0]))
 
         # (if dump strings enabled) haven't found anything via binwalk nor file headers
         elif self.strings and (strings := self.dump_strings(raw_data)):
             file = strings.popitem()
-            self.logger.info(log_msg.format(file[1], id, "via dumped strings", file[0]))
+            self.logger.info_file(log_msg.format(file[1], id, "via dumped strings", file[0]))
 
         # (if entropy search enabled) there's still the (slim) chance that utf-8 text could be hiding in that data
         elif self.ent_limits and (valid_file := self.get_file_via_entropy(raw_data)):
             file = valid_file.popitem()
-            self.logger.info(log_msg.format(file[1], id, "via entropy calc", file[0]))
+            self.logger.info_file(log_msg.format(file[1], id, "via entropy calc", file[0]))
 
         return
 

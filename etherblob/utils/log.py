@@ -1,37 +1,47 @@
 import logging
 import sys
+from termcolor import colored
 
 class Logger():
-    FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
+    FILE_FORMAT = "%(asctime)s [%(levelname)s] %(message)s"
+    STDOUT_FORMAT = colored("%(asctime)s ", "yellow") + "%(message)s"
     OUT_LOG = "etherblob_{}-{}.log"
+    INFO = "{} ".format(colored("[INFO]", "blue"))
+    WARNING = "{} ".format(colored("[WARN]", "red"))
+    ERROR = "{} ".format(colored("[ERROR]", "white", "on_red", ['blink']))
+    INFO_FILE = "{} ".format(colored("[INFO]", "blue", "on_cyan", ['bold']))
 
 
     def __init__(self, args):
         self.out_log = self.get_outlog(args.start_block, args.end_block, args.out_log)
-        self.logger = self.logging_setup()
+        self.cons_logger, self.file_logger = self.logging_setup()
 
 
     # setup logging config for stdout and a file
     def logging_setup(self):
-        # set formatter and get root logger
-        log_fmt = logging.Formatter(self.FORMAT)
-        root_log = logging.getLogger()
+        # set formatter and create 2 loggers
+        stdout_fmt = logging.Formatter(self.STDOUT_FORMAT)
+        file_fmt = logging.Formatter(self.FILE_FORMAT)
+        file_log = logging.getLogger("file_handler")
+        cons_log = logging.getLogger("cons_handler")
 
-        # create file handler and attach to root logger
+        # create file handler and attach to file logger
         file_hdlr = logging.FileHandler(self.out_log)
-        file_hdlr.setFormatter(log_fmt)
+        file_hdlr.setFormatter(file_fmt)
         file_hdlr.setLevel(logging.INFO)
-        root_log.addHandler(file_hdlr)
+        file_log.addHandler(file_hdlr)
 
-        # create console handler and attach to root logger
+        # create console handler and attach to console logger
         cons_hdlr = logging.StreamHandler(sys.stdout)
-        cons_hdlr.setFormatter(log_fmt)
+        cons_hdlr.setFormatter(stdout_fmt)
         cons_hdlr.setLevel(logging.INFO)
-        root_log.addHandler(cons_hdlr)
+        cons_log.addHandler(cons_hdlr)
 
-        root_log.setLevel(logging.INFO)
+        # set logger levels
+        cons_log.setLevel(logging.INFO)
+        file_log.setLevel(logging.INFO)
 
-        return root_log
+        return cons_log, file_log
 
 
     # get log-file name
@@ -49,18 +59,28 @@ class Logger():
 
     # wrapper around 'logging' info for Logger class
     def info(self, msg):
-        self.logger.info(msg)
+        self.file_logger.info(msg)
+        self.cons_logger.info(self.INFO + msg)
+
+        return
+
+    # wrapper around 'logging' info when files are found
+    def info_file(self, msg):
+        self.file_logger.info(msg)
+        self.cons_logger.info(self.INFO_FILE + msg)
 
         return
 
     # wrapper around 'logging' warning for Logger class
     def warning(self, msg):
-        self.logger.warning(msg)
+        self.file_logger.warning(msg)
+        self.cons_logger.warning(self.WARNING + msg)
 
         return
 
     # wrapper around 'logging' error for Logger class
     def error(self, msg):
-        self.logger.error(msg)
+        self.file_logger.error(msg)
+        self.cons_logger.error(self.ERROR + msg)
 
         return
