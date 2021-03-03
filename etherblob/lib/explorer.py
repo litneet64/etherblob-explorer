@@ -1,4 +1,7 @@
 import os
+import shutil
+from pyfiglet import Figlet
+from termcolor import colored
 from time import sleep
 from etherscan import Etherscan
 from etherblob.lib.extractor import Extractor
@@ -16,6 +19,7 @@ class EtherBlobExplorer():
     def __init__(self, args):
         # get logger, get api key and etherscan object, create extracted files' dir
         self.args = args
+        self.print_banner()
         self.logger = Logger(args)
         self.ext_dir = self.create_ext_dir(args.start_block, args.end_block, args.output_dir)
         self.api_key = self.get_apikey(args.api_key, args.api_key_path)
@@ -163,3 +167,15 @@ class EtherBlobExplorer():
                 self.logger.error_exit()
 
         return api_key
+
+
+    # print banner
+    def print_banner(self):
+        # get terminal's width
+        term_w = shutil.get_terminal_size().columns
+
+        # display ascii banner using pyfiglet
+        f = Figlet(font = "slant", width = term_w)
+        print(colored(f.renderText("<> EtherBlob Explorer"), "blue"))
+
+        return
