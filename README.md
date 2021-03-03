@@ -3,10 +3,20 @@
 
 Search and extract blob files on the Ethereum network using [Etherscan.io](https://etherscan.io/apis) API.
 
+![thumbnail](thumbnail.png)
+
 ## Introduction
 EtherBlob Explorer is a tool intended for researchers, analysts, CTF players or anyone curious enough wanting to search for different kinds of files or any meaningful human-supplied data on the Ethereum Blockchain Network. It searches over a user-supplied range of block IDs or UNIX timestamps.
 
  For a real-life case you can read [this](https://boobies.surge.sh/) experiment made on 2017. The immutability of the blockchain can truly be a double-edged sword.
+
+## Installation
+After cloning the repo and before the first-time run:
+```bash
+$ pip install -r requirements.txt
+```
+
+Now it's ready to use, you can find some common usage examples below!
 
 ## Features
 
@@ -45,42 +55,42 @@ All of these methods can be used either separately or in any combination:
 ### Common use cases
 Standard search (look inside transactions via file headers) with API key on default location (`.api-key`):
 ```bash
-litneet64@mach-5:~$ ./etherblob.py 4081599 4081600
+$ ./etherblob.py 4081599 4081600
 ```
 
 More "in-through" search (search for embedded files + regular search method) with key inside arbitrary file:
 ```bash
-litneet64@mach-5:~$ ./etherblob.py -K api.key 4081599 4081600 -M
+$ ./etherblob.py -K api.key 4081599 4081600 -M
 ```
 
 Search over block headers and transactions at the same time and save extracted files to 'extracted':
 ```bash
-litneet64@mach-5:~$ ./etherblob.py 4081599 4081600 --blocks --transactions -D extracted/
+$ ./etherblob.py 4081599 4081600 --blocks --transactions -D extracted/
 ```
 
 Search only inside 'to' addresses in range from blocks commited between `Jan 25 2021 19:00:00` and `Jan 26 2021 19:00:00`:
 ```bash
-litneet64@mach-5:~$ ./etherblob.py -t 1611601200 1611687600 --addresses
+$ ./etherblob.py -t 1611601200 1611687600 --addresses
 ```
 
 Search only inside transactions for encrypted/compressed data (ignoring any other file format):
 ```bash
-litneet64@mach-5:~$ ./etherblob.py 4081599 4081600 --encrypted -i '*'
+$ ./etherblob.py 4081599 4081600 --encrypted -i '*'
 ```
 
 Search inside transactions for custom entropy files (if file-header search doesn't find a thing) while saving transactions into file:
 ```bash
-litneet64@mach-5:~$ ./etherblob.py  3911697 3912697 -E 4.0 5.0 -s
+$ ./etherblob.py  3911697 3912697 -E 4.0 5.0 -s
 ```
 
 Only dump ASCII strings over blocks and transactions made on Christmas Eve (between the 24th and 25th):
 ```bash
-litneet64@mach-5:~$ ./etherblob.py -t 1608836400 1608922800 --blocks --transactions --strings -i '*'
+$ ./etherblob.py -t 1608836400 1608922800 --blocks --transactions --strings -i '*'
 ```
 
 Full-blown search (expect many false-positives):
 ```bash
-litneet64@mach-5:~$ ./etherblob.py 4081599 4081600 -U -S -M --blocks --transactions --addresses
+$ ./etherblob.py 4081599 4081600 -U -S -M --blocks --transactions --addresses
 ```
 
 
