@@ -3,6 +3,8 @@
 
 Search and extract blob files on the Ethereum network using [Etherscan.io](https://etherscan.io/apis) API.
 
+![thumbnail](thumbnail.png)
+
 ## Introduction
 EtherBlob Explorer is a tool intended for researchers, analysts, CTF players or anyone curious enough wanting to search for different kinds of files or any meaningful human-supplied data on the Ethereum Blockchain Network. It searches over a user-supplied range of block IDs or UNIX timestamps.
 
