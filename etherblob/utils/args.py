@@ -139,6 +139,6 @@ class Args():
                 nargs = '*', default = ["default_file_fmt"])
 
         # print version and exit
-        parser.add_argument('--version', action = 'version', version = 'EtherBlob Explorer 1.3.1')
+        parser.add_argument('--version', action = 'version', version = 'EtherBlob Explorer 1.3.2')
 
         return parser.parse_args()
