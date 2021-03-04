@@ -1,3 +1,5 @@
+argparse==1.4.0
+etherscan==0.3.0
 python-magic==0.4.20
 binwalk==2.2.0
 pyfiglet==0.8.post1
