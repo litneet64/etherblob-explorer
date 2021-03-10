@@ -7,7 +7,7 @@ class Stats():
     def __init__(self, blob_exp):
         self.logger = blob_exp.logger
         self.blob_exp = blob_exp
-        self.total_blocks = blob_exp.args.end_block - blob_exp.args.start_block
+        self.total_blocks = blob_exp.args.end_block - blob_exp.args.start_block + 1
 
         # last time and block recorded on previous cycle
         self.last_time = time()
