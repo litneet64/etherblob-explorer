@@ -410,9 +410,7 @@ class Extractor():
 
     # parse raw api-given data into bytes
     def parse_raw_data(self, raw_hex_data):
-        hex_data = int(raw_hex_data, 16)
-        data_size = ceil(log(hex_data, 2) / 8)
-        data = hex_data.to_bytes(data_size, byteorder="big")
+        data = bytes.fromhex(raw_hex_data.replace('0x', ''))
 
         return data
 
@@ -427,8 +425,8 @@ class Extractor():
         elif ign_fmt == ['default_file_fmt']:
             ign_fmt = self.IGNORE_DEFAULT_FMTS
 
-        # canonicalize file formats to lowercase (and add data "fmt")
-        ign_fmt = ['^data$'] + list(map(str.lower, ign_fmt))
+        # canonicalize file formats to lowercase (and add data and empty "fmts")
+        ign_fmt = ['^data$', '^empty$'] + list(map(str.lower, ign_fmt))
 
         return ign_fmt
 
