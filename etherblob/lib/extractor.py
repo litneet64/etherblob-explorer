@@ -14,7 +14,7 @@ class Extractor():
     NL_ENT_MAX = 5.0                                      # max entropy limit for a natural language
     ENC_ENT_MIN = 7.0                                     # min entropy limit for encrypted/compressed files
     ENC_ENT_MAX = 8.0                                     # max entropy limit for encrypted/compressed files
-    STORAGE_FIELDS = 16                                   # N storage array indexes to search for
+    STORAGE_POS = 16                                      # N storage array indexes to search for
 
     def __init__(self, blob_exp):
         # get reference to blob explorer and copy frequently used objects
@@ -24,9 +24,10 @@ class Extractor():
         self.ext_dir = blob_exp.ext_dir
         self.eth_scan = blob_exp.eth_scan
 
-        # parse extracted file name and ignored file formats
+        # parse extracted file name, ignored file formats and contract position
         self.ext_file_name = self.get_ext_file_path(blob_exp.ext_dir)
         self.ignored_fmt = self.get_ignored_fmts(blob_exp.args.ignored_fmt)
+        self.contract_pos = self.get_contract_position(blob_exp.args.contract_position)
 
         # get entropy limits, strings arg and embedded flag
         self.ent_limits = self.get_entropy_limits(blob_exp.args)
@@ -103,10 +104,10 @@ class Extractor():
             # first time seeing possible contract, confirm its one and get first N data storage fields
             if self.eth_scan.get_proxy_code_at(contract_addr) != '0x':
                 hex_data = ""
-                for i in range(self.STORAGE_FIELDS):
+                for pos in range(self.contract_pos):
                     hex_data += self.eth_scan.get_proxy_storage_position_at(
                                                 address=contract_addr,
-                                                position=hex(i)
+                                                position=hex(pos)
                                             )
 
                 data = self.parse_raw_data(hex_data)
@@ -376,6 +377,14 @@ class Extractor():
             self.logger.info(f"Using entropy limits of '{limits['min']}' and '{limits['max']}' for search...")
 
         return limits
+
+
+    # get and parse contract's storage position for search
+    def get_contract_position(self, cont_pos):
+        if cont_pos == -1:
+            cont_pos = self.STORAGE_POS
+
+        return cont_pos
 
 
     # check if given file format is on list

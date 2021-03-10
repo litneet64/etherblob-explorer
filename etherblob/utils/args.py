@@ -9,6 +9,16 @@ class Args():
 
         return args
 
+
+    # print message and exit
+    @staticmethod
+    def print_exit(msg):
+        print(msg)
+        exit(127)
+
+        return
+
+
     # parse args according to certain logic (on error, should make program end on the spot)
     @classmethod
     def parse_args(cls, args):
@@ -18,13 +28,11 @@ class Args():
 
         # assure ending range ID bigger than starting one
         if args.end_block < args.start_block:
-            print("Invalid args: ending block ID/timetamp should be bigger than starting one!")
-            exit(127)
+            cls.print_exit("Invalid args: ending block ID/timetamp should be bigger than starting one!")
 
         # assure transaction saving is only enabled if extraction from transactions mode is enabled too
         if (args.transactions == False) and args.save_transactions:
-            print("Can't save transactions without transaction extracting mode!")
-            exit(127)
+            cls.print_exit("Can't save transactions without transaction extracting mode!")
 
         # assure entropy custom limits are between 0 and 8, and they make sense
         if (ent := args.custom_entropy) != [-1, -1]:
@@ -37,15 +45,22 @@ class Args():
                 valid = False
 
             if not valid:
-                print("Entropy limits should be between 0.0 and 8.0 and with first < second!")
-                exit(127)
+                cls.print_exit("Entropy limits should be between 0.0 and 8.0 and with first < second!")
 
         # assure custom entropy limits and encrypted flag are not set at same time
         if args.encrypted and args.custom_entropy != [-1, -1]:
-            print("Custom entropies and encrypted flag should be set separately!")
-            exit(127)
+            cls.print_exit("Custom entropies and encrypted flag should be set separately!")
+
+        # assure sane storage array indexes and check that it's only selected when '--contracts' is enabled
+        if (cont_pos := args.contract_position) != -1:
+            if not args.contracts:
+                cls.print_exit("Invalid args: '--contract-position' should be enabled only when "\
+                            "'--contracts' is enabled too!")
+            elif cont_pos <= 0:
+                cls.print_exit("Contract position should be positive!")
 
         return args
+
 
     # setup arg parser object
     @classmethod
@@ -109,6 +124,11 @@ class Args():
                 (blocks, transactions, addresses) if no other discernible file is \
                 found first on that data.')
 
+        # search until the (N-1)th position at contract's storage array
+        parser.add_argument('-C', '--contract-position', type = int, help = 'Search for contract data \
+                until reaching the (N-1)th position on its storage array. Positions contain 32 \
+                bytes worth of data. Count starts at 0 and default pos is the 15th pos \
+                (16 indexes in total).', default = -1)
 
         # interpret start and end block ids as timestamps
         parser.add_argument('-t', '--timestamps', action = 'store_true', help = 'If enabled, then start and \
