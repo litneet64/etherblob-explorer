@@ -65,6 +65,8 @@ class EtherBlobExplorer():
                 self.extractor.extract_from_block(block_info)
             if self.args.addresses:
                 self.extractor.search_in_trans_address(block_info)
+            if self.args.contracts:
+                self.extractor.extract_from_contract(block_info)
 
             # wait to avoid triggering anti-abuse measures
             sleep(0.2)

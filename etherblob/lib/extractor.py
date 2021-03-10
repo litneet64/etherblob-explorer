@@ -14,6 +14,7 @@ class Extractor():
     NL_ENT_MAX = 5.0                                      # max entropy limit for a natural language
     ENC_ENT_MIN = 7.0                                     # min entropy limit for encrypted/compressed files
     ENC_ENT_MAX = 8.0                                     # max entropy limit for encrypted/compressed files
+    STORAGE_POS = 16                                      # N storage array indexes to search for
 
     def __init__(self, blob_exp):
         # get reference to blob explorer and copy frequently used objects
@@ -21,10 +22,12 @@ class Extractor():
         self.stats = blob_exp.stats
         self.trans_file = blob_exp.trans_file
         self.ext_dir = blob_exp.ext_dir
+        self.eth_scan = blob_exp.eth_scan
 
-        # parse extracted file name and ignored file formats
+        # parse extracted file name, ignored file formats and contract position
         self.ext_file_name = self.get_ext_file_path(blob_exp.ext_dir)
         self.ignored_fmt = self.get_ignored_fmts(blob_exp.args.ignored_fmt)
+        self.contract_pos = self.get_contract_position(blob_exp.args.contract_position)
 
         # get entropy limits, strings arg and embedded flag
         self.ent_limits = self.get_entropy_limits(blob_exp.args)
@@ -34,35 +37,19 @@ class Extractor():
         # interesting addresses that smuggled data on 'to' field in transaction
         self.tracked_addr = {}
 
+        # already searched contracts
+        self.tracked_contracts = {}
+
 
     # attempt to extract files from transactions' input data
     def extract_from_transactions(self, blk_info):
-        # iterate all over the transactions from that block
-        block_trans = blk_info.get('transactions')
-        for trans_obj in block_trans:
-            trans_hash = trans_obj['hash']
+        def get_from_transaction_stub(trans, hash_id):
+            # parse input data and search for files
+            data = self.parse_raw_data(trans.get('input'))
+            self.search_and_extract(data, "transaction", hash_id)
 
-            try:
-                # parse input data and search for files
-                data = self.parse_raw_data(trans_obj.get('input'))
-                self.search_and_extract(data, "transaction", trans_hash)
-
-            except ValueError as e:
-                # skip when no input data is found
-                pass
-            except Exception as e:
-                self.logger.error(f"Unexpected error found parsing input data on trans '{trans_hash}': {e}")
-                self.logger.error_exit()
-            finally:
-                if self.trans_file:
-                    # save details into transaction file
-                    self.trans_file.write(f"[*] Transaction {trans_hash}\n")
-                    for k,v in trans_obj.items():
-                        if k != 'hash':
-                            self.trans_file.write(f"\t[-] {k}: {v}\n")
-                    self.trans_file.write("\n")
-
-                self.stats.trans_c += 1
+        # call generic transaction iter func passing stub
+        self.iterate_over_transactions(get_from_transaction_stub, blk_info)
 
         return
 
@@ -101,6 +88,67 @@ class Extractor():
         except Exception as e:
             self.logger.error(f"Unexpected error found parsing extra data on block '{blk_id}': {e}")
             self.logger.error_exit()
+
+        return
+
+
+    # attempt to extract files from contract's storage
+    def extract_from_contract(self, blk_info):
+        def get_from_contract_stub(trans, hash_id):
+            # get possible contract address
+            contract_addr = trans.get('to', trans.get('creates'))
+
+            if self.tracked_contracts.get(contract_addr) or not contract_addr:
+                return
+
+            # first time seeing possible contract, confirm its one and get first N data storage fields
+            if self.eth_scan.get_proxy_code_at(contract_addr) != '0x':
+                hex_data = ""
+                for pos in range(self.contract_pos):
+                    hex_data += self.eth_scan.get_proxy_storage_position_at(
+                                                address=contract_addr,
+                                                position=hex(pos)
+                                            )
+
+                data = self.parse_raw_data(hex_data)
+                self.search_and_extract(data, "contract", hash_id)
+
+                # mark as traversed
+                self.tracked_contracts[contract_addr] = True
+
+
+        # call generic transaction iter func passing stub
+        self.iterate_over_transactions(get_from_contract_stub, blk_info)
+
+        return
+
+
+    # generic 'safe' iterations over transaction
+    def iterate_over_transactions(self, func, blk_info):
+        # iterate all over the transactions from that block
+        block_trans = blk_info.get('transactions')
+        for trans_obj in block_trans:
+            trans_hash = trans_obj['hash']
+
+            try:
+                # here goes stub being called
+                func(trans_obj, trans_hash)
+            except ValueError as e:
+                # skip when no input data is found
+                pass
+            except Exception as e:
+                self.logger.error(f"Unexpected error found parsing input data on trans '{trans_hash}': {e}")
+                self.logger.error_exit()
+            finally:
+                if self.trans_file:
+                    # save details into transaction file
+                    self.trans_file.write(f"[*] Transaction {trans_hash}\n")
+                    for k,v in trans_obj.items():
+                        if k != 'hash':
+                            self.trans_file.write(f"\t[-] {k}: {v}\n")
+                    self.trans_file.write("\n")
+
+                self.stats.trans_c += 1
 
         return
 
@@ -151,6 +199,8 @@ class Extractor():
             log_msg = gen_msg.format("inside transaction")
         elif ext_type == "block":
             log_msg = gen_msg.format("on block")
+        elif ext_type == "contract":
+            log_msg = gen_msg.format("on contract data at")
         else:
             raise Exception("invalid extraction type!")
 
@@ -329,6 +379,14 @@ class Extractor():
         return limits
 
 
+    # get and parse contract's storage position for search
+    def get_contract_position(self, cont_pos):
+        if cont_pos == -1:
+            cont_pos = self.STORAGE_POS
+
+        return cont_pos
+
+
     # check if given file format is on list
     def ignored_format(self, complete_file_fmt):
         # return instantly if ignore-all-formats wildcard was given
@@ -361,9 +419,7 @@ class Extractor():
 
     # parse raw api-given data into bytes
     def parse_raw_data(self, raw_hex_data):
-        hex_data = int(raw_hex_data, 16)
-        data_size = ceil(log(hex_data, 2) / 8)
-        data = hex_data.to_bytes(data_size, byteorder="big")
+        data = bytes.fromhex(raw_hex_data.replace('0x', ''))
 
         return data
 
@@ -378,8 +434,8 @@ class Extractor():
         elif ign_fmt == ['default_file_fmt']:
             ign_fmt = self.IGNORE_DEFAULT_FMTS
 
-        # canonicalize file formats to lowercase (and add data "fmt")
-        ign_fmt = ['^data$'] + list(map(str.lower, ign_fmt))
+        # canonicalize file formats to lowercase (and add data and empty "fmts")
+        ign_fmt = ['^data$', '^empty$'] + list(map(str.lower, ign_fmt))
 
         return ign_fmt
 
