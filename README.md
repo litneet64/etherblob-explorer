@@ -26,6 +26,7 @@ This tool can search on the following locations, either separately or combining 
 
 * **Transaction Input Data**: search inside transaction's input data (default location).
 * **Block Input Data**: search inside block's input data.
+* **Contract Storage**: search inside a contract's storage array on the first _N_ 32-byte sized positions, treating it all as one big data string.
 * **To Addresses**: search appending 'to' addresses as the possible input **[*]** (checking first for file headers and re-checking when all data is harvested using binwalk).
 
 **[\*]** Storing data on 'to' addresses is possible on the Ethereum network as there's no verification if sending to an address that has no associated account keys. Meaning you can make transactions to arbitrary addresses to craft a payload over several 20-byte sized transactions (it's very rare but so are some CTF challenges).
@@ -53,7 +54,7 @@ All of these methods can be used either separately or in any combination:
 ## Usage
 
 ### Common use cases
-Standard search (look inside transactions via file headers) with API key on default location (`.api-key`):
+Standard search (look inside transactions via file headers) with API key on default location (`.api-key`) and between these two block IDs (inclusive):
 ```bash
 $ ./etherblob.py 4081599 4081600
 ```
@@ -73,6 +74,11 @@ Search only inside 'to' addresses in range from blocks commited between `Jan 25 
 $ ./etherblob.py -t 1611601200 1611687600 --addresses
 ```
 
+Search only for interesting strings on contracts' storage and for the first 4 storage array positions (128 bytes worth of data):
+```bash
+$ ./etherblob.py 3911697 3912697 -S --contracts -i '*' -C 4
+```
+
 Search only inside transactions for encrypted/compressed data (ignoring any other file format):
 ```bash
 $ ./etherblob.py 4081599 4081600 --encrypted -i '*'
@@ -88,17 +94,18 @@ Only dump ASCII strings over blocks and transactions made on Christmas Eve (betw
 $ ./etherblob.py -t 1608836400 1608922800 --blocks --transactions --strings -i '*'
 ```
 
-Full-blown search (expect many false-positives):
+Full-blown search (slow, expect many false-positives):
 ```bash
-$ ./etherblob.py 4081599 4081600 -U -S -M --blocks --transactions --addresses
+$ ./etherblob.py 4081599 4081600 -U -S -M --blocks --transactions --addresses --contracts
 ```
 
 
 
 ### Manual
 ```
-usage: etherblob.py [-h] [--transactions] [--blocks] [--addresses] [-M] [-U] [-E CUSTOM_ENTROPY CUSTOM_ENTROPY] [--encrypted] [-S]
-                    [-t] [-K API_KEY_PATH] [-k API_KEY] [-D OUTPUT_DIR] [-o OUT_LOG] [-s] [-i [IGNORED_FMT ...]] [--version]
+usage: etherblob.py [-h] [--transactions] [--blocks] [--addresses] [--contracts] [-M] [-U] [-E CUSTOM_ENTROPY CUSTOM_ENTROPY]
+                    [--encrypted] [-S] [-C CONTRACT_POSITION] [-t] [-K API_KEY_PATH] [-k API_KEY] [-D OUTPUT_DIR] [-o OUT_LOG] [-s]
+                    [-i [IGNORED_FMT ...]] [--version]
                     start_block end_block
 
 Tool to search and extract blob files on the Ethereum Network.
@@ -112,11 +119,13 @@ optional arguments:
   --transactions        Search for blob files on transaction inputs. Default search mode.
   --blocks              Search for blob files on block inputs. If enabled then transaction input check is disabled unless explicitly
                         enabled.
-  --addresses           Search for blob files on 'to' transaction addresses, as on Ethereum anyone can make transactions to an
-                        arbitrary address even if it has no related owner (still not very common). If enabled then transaction's input
-                        check is disabled unless explicitly enabled.
-  -M, --embedded        If enabled, search for embedded files on data (from blocks, transactions or addresses) via binwalk. Disabled
-                        by default as parsing now takes longer.
+  --addresses           Search for blob files on 'to' transaction addresses, as on Ethereum anyone can make transactions to an arbitrary
+                        address even if it has no related owner (still not very common). If enabled then transaction's input check is
+                        disabled unless explicitly enabled.
+  --contracts           Search for blob files on contract's storage. If enabled then transaction input check is disabled unless
+                        explicitly enabled.
+  -M, --embedded        If enabled, search for embedded files on data (from blocks, transactions or addresses) via binwalk. Disabled by
+                        default as parsing now takes longer.
   -U, --unicode         If enabled, attempt to search and dump files containing UTF-8 text from harvested data (blocks, transactions,
                         addresses) using Shannon's Entropy (between 3.5 and 5.0) if no other discernible file is found first on that
                         data. Yields many false positives.
@@ -127,6 +136,9 @@ optional arguments:
                         first on that data.
   -S, --strings         If enabled, attempt to search and dump ASCII strings into files found inside harvested data (blocks,
                         transactions, addresses) if no other discernible file is found first on that data.
+  -C CONTRACT_POSITION, --contract-position CONTRACT_POSITION
+                        Search for contract data until reaching the (N-1)th position on its storage array. Positions contain 32 bytes
+                        worth of data. Count starts at 0 and default pos is the 15th pos (16 indexes in total).
   -t, --timestamps      If enabled, then start and end block IDs are interpreted as UNIX timestamps that are then resolved to the
                         closest commited blocks for those specific times.
   -K API_KEY_PATH, --api-key-path API_KEY_PATH
