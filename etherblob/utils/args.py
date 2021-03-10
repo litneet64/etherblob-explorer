@@ -13,7 +13,7 @@ class Args():
     @classmethod
     def parse_args(cls, args):
         # enable transaction search mode as default only if other modes are not enabled
-        if not args.blocks and not args.addresses:
+        if not args.blocks and not args.addresses and not args.contracts:
             args.transactions = True
 
         # assure ending range ID bigger than starting one
@@ -74,6 +74,11 @@ class Args():
                 transactions to an arbitrary address even if it has no related owner \
                 (still not very common). If enabled then transaction\'s input check \
                 is disabled unless explicitly enabled.')
+
+        # enable serach on contract's storage
+        parser.add_argument('--contracts', action = 'store_true', help = 'Search for \
+                blob files on contract\'s storage. If enabled then transaction input \
+                check is disabled unless explicitly enabled.')
 
         # enable embedded file search
         parser.add_argument('-M', '--embedded', action = 'store_true', help = 'If enabled,\
