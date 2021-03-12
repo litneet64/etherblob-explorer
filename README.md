@@ -1,5 +1,5 @@
 # EtherBlob Explorer
-![GitHub top language](https://img.shields.io/github/languages/top/litneet64/etherblob-explorer) ![GitHub](https://img.shields.io/github/license/litneet64/etherblob-explorer)
+![GitHub top language](https://img.shields.io/github/languages/top/litneet64/etherblob-explorer) ![GitHub release (latest by date)](https://img.shields.io/github/v/release/litneet64/etherblob-explorer) ![GitHub](https://img.shields.io/github/license/litneet64/etherblob-explorer)
 
 Search and extract blob files on the Ethereum network using [Etherscan.io](https://etherscan.io/apis) API.
 
