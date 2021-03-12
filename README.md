@@ -11,12 +11,12 @@ EtherBlob Explorer is a tool intended for researchers, analysts, CTF players or 
  For a real-life case you can read [this](https://boobies.surge.sh/) experiment made on 2017. The immutability of the blockchain can truly be a double-edged sword.
 
 ## Installation
-After cloning the repo and before the first-time run:
+Run the following command:
 ```bash
-$ pip install -r requirements.txt
+$ pip install git+https://github.com/litneet64/etherblob-explorer.git
 ```
 
-Now it's ready to use, you can find some common usage examples below!
+Now it's ready to use from your CLI, you can find some common usage examples below!
 
 ## Features
 
@@ -40,7 +40,7 @@ All of these methods can be used either separately or in any combination:
 * **ASCII String Dump**: search for ASCII strings inside data.
 * **Entropy-Based Search**: use Shannon's Entropy as a measure tool to search for natural language text (e.g. UTF-8 Unicode), encrypted/compressed files or anything the user seems viable with user-supplied entropy limits.
 
-**IMPORTANT**: The order showed here is used _under-the-hood_ for discarding searches with other methods (e.g. if file is found via `embedded files` then it won't attempt to search using `file headers`, `ascii string dump` nor `entropy` as it's not likely to find anything meaningful if previous methods were already successful).
+**IMPORTANT**: The order showed here is used _under-the-hood_ for discarding searches with other methods (e.g. if file is found via `embedded files` then it won't attempt to search using `file headers`, `ascii string dump` nor `entropy`) as it's not likely to find anything meaningful if previous methods were already successful.
 
 ### Misc
 
@@ -54,56 +54,56 @@ All of these methods can be used either separately or in any combination:
 ## Usage
 
 ### Common use cases
-Standard search (look inside transactions via file headers) with API key on default location (`.api-key`) and between these two block IDs (inclusive):
+* Standard search (look inside transactions via file headers) with API key on default location (`.api-key`) and between these two block IDs (inclusive):
 ```bash
-$ ./etherblob.py 4081599 4081600
+$ etherblob 4081599 4081600
 ```
 
-More "in-through" search (search for embedded files + regular search method) with key inside arbitrary file:
+* More "in-through" search (search for embedded files + regular search method) with key inside arbitrary file:
 ```bash
-$ ./etherblob.py -K api.key 4081599 4081600 -M
+$ etherblob -K api.key 4081599 4081600 -M
 ```
 
-Search over block headers and transactions at the same time and save extracted files to 'extracted':
+* Search over block headers and transactions at the same time and save extracted files to 'extracted':
 ```bash
-$ ./etherblob.py 4081599 4081600 --blocks --transactions -D extracted/
+$ etherblob 4081599 4081600 --blocks --transactions -D extracted/
 ```
 
-Search only inside 'to' addresses in range from blocks commited between `Jan 25 2021 19:00:00` and `Jan 26 2021 19:00:00`:
+* Search only inside 'to' addresses in range from blocks commited between `Jan 25 2021 19:00:00` and `Jan 26 2021 19:00:00`:
 ```bash
-$ ./etherblob.py -t 1611601200 1611687600 --addresses
+$ etherblob -t 1611601200 1611687600 --addresses
 ```
 
-Search only for interesting strings on contracts' storage and for the first 4 storage array positions (128 bytes worth of data):
+* Search only for interesting strings on contracts' storage and for the first 4 storage array positions (128 bytes worth of data):
 ```bash
-$ ./etherblob.py 3911697 3912697 -S --contracts -i '*' -C 4
+$ etherblob 3911697 3912697 -S --contracts -i '*' -C 4
 ```
 
-Search only inside transactions for encrypted/compressed data (ignoring any other file format):
+* Search only inside transactions for encrypted/compressed data (ignoring any other file format):
 ```bash
-$ ./etherblob.py 4081599 4081600 --encrypted -i '*'
+$ etherblob 4081599 4081600 --encrypted -i '*'
 ```
 
-Search inside transactions for custom entropy files (if file-header search doesn't find a thing) while saving transactions into file:
+* Search inside transactions for custom entropy files (if file-header search doesn't find a thing) while saving transactions into file:
 ```bash
-$ ./etherblob.py  3911697 3912697 -E 4.0 5.0 -s
+$ etherblob  3911697 3912697 -E 4.0 5.0 -s
 ```
 
-Only dump ASCII strings over blocks and transactions made on Christmas Eve (between the 24th and 25th):
+* Only dump ASCII strings over blocks and transactions made on Christmas Eve (between the 24th and 25th):
 ```bash
-$ ./etherblob.py -t 1608836400 1608922800 --blocks --transactions --strings -i '*'
+$ etherblob -t 1608836400 1608922800 --blocks --transactions --strings -i '*'
 ```
 
-Full-blown search (slow, expect many false-positives):
+* Full-blown search (slow, expect many false-positives):
 ```bash
-$ ./etherblob.py 4081599 4081600 -U -S -M --blocks --transactions --addresses --contracts
+$ etherblob 4081599 4081600 -U -S -M --blocks --transactions --addresses --contracts
 ```
 
 
 
 ### Manual
 ```
-usage: etherblob.py [-h] [--transactions] [--blocks] [--addresses] [--contracts] [-M] [-U] [-E CUSTOM_ENTROPY CUSTOM_ENTROPY]
+usage: etherblob [-h] [--transactions] [--blocks] [--addresses] [--contracts] [-M] [-U] [-E CUSTOM_ENTROPY CUSTOM_ENTROPY]
                     [--encrypted] [-S] [-C CONTRACT_POSITION] [-t] [-K API_KEY_PATH] [-k API_KEY] [-D OUTPUT_DIR] [-o OUT_LOG] [-s]
                     [-i [IGNORED_FMT ...]] [--version]
                     start_block end_block
