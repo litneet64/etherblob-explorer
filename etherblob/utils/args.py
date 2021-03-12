@@ -1,4 +1,5 @@
 import argparse
+import etherblob
 
 class Args():
     # get args and parse them
@@ -164,6 +165,6 @@ class Args():
                 nargs = '*', default = ["default_file_fmt"])
 
         # print version and exit
-        parser.add_argument('--version', action = 'version', version = 'EtherBlob Explorer 1.4.0')
+        parser.add_argument('--version', action = 'version', version = f'EtherBlob Explorer {etherblob.__version__}')
 
         return parser.parse_args()
