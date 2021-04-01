@@ -96,6 +96,13 @@ class Args():
                 blob files on contract\'s storage. If enabled then transaction input \
                 check is disabled unless explicitly enabled.')
 
+        # choose blockchain net
+        parser.add_argument('--network', '-N', type = str.lower, help = 'Choose blockchain \
+                network to search in. Available choices are Main, Goerli (Görli), Kovan, \
+                Rinkeby and Ropsten. MainNet is the default network. Case-insensitive.',
+                choices = ['main', 'goerli', 'kovan', 'rinkeby', 'ropsten'],
+                default = 'main')
+
         # enable embedded file search
         parser.add_argument('-M', '--embedded', action = 'store_true', help = 'If enabled,\
                 search for embedded files on data (from blocks, transactions or addresses) via \
