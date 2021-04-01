@@ -68,8 +68,6 @@ class EtherBlobExplorer():
             if self.args.contracts:
                 self.extractor.extract_from_contract(block_info)
 
-            # wait to avoid triggering anti-abuse measures
-            sleep(0.2)
             self.block_id += 1
 
             # show cycle stats
