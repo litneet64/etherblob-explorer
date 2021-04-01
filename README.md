@@ -6,7 +6,7 @@ Search and extract blob files on the Ethereum network using [Etherscan.io](https
 ![thumbnail](thumbnail.png)
 
 ## Introduction
-EtherBlob Explorer is a tool intended for researchers, analysts, CTF players or anyone curious enough wanting to search for different kinds of files or any meaningful human-supplied data on the Ethereum Blockchain Network. It searches over a user-supplied range of block IDs or UNIX timestamps.
+EtherBlob Explorer is a tool intended for researchers, analysts, CTF players or anyone curious enough wanting to search for different kinds of files or any meaningful human-supplied data on the Ethereum Blockchain Network. It searches over a user-supplied range of block IDs or UNIX timestamps on any of the 5 available networks: MainNet, Görli, Kovan, Rinkeby and Ropsten.
 
  For a real-life case you can read [this](https://boobies.surge.sh/) experiment made on 2017. The immutability of the blockchain can truly be a double-edged sword.
 
@@ -19,8 +19,24 @@ $ pip install git+https://github.com/litneet64/etherblob-explorer.git
 Now it's ready to use from your CLI, you can find some common usage examples below!
 
 ## Features
+<details>
+<summary><b>Networks</b></summary>
+<br>
 
-### Search Locations
+Search on any of the five Ethereum Networks:
+
+* **MainNet**
+* **Görli**
+* **Kovan**
+* **Rinkeby**
+* **Ropsten**
+
+<br>
+</details>
+
+<details>
+<summary><b>Search Locations</b></summary>
+<br>
 
 This tool can search on the following locations, either separately or combining any of these on the same run:
 
@@ -31,7 +47,12 @@ This tool can search on the following locations, either separately or combining 
 
 **[\*]** Storing data on 'to' addresses is possible on the Ethereum network as there's no verification if sending to an address that has no associated account keys. Meaning you can make transactions to arbitrary addresses to craft a payload over several 20-byte sized transactions (it's very rare but so are some CTF challenges).
 
-### Search and Extraction Methods
+<br>
+</details>
+
+<details>
+<summary><b>Search and Extraction Methods</b></summary>
+<br>
 
 All of these methods can be used either separately or in any combination:
 
@@ -42,7 +63,12 @@ All of these methods can be used either separately or in any combination:
 
 **IMPORTANT**: The order showed here is used _under-the-hood_ for discarding searches with other methods (e.g. if file is found via `embedded files` then it won't attempt to search using `file headers`, `ascii string dump` nor `entropy`) as it's not likely to find anything meaningful if previous methods were already successful.
 
-### Misc
+<br>
+</details>
+
+<details>
+<summary><b>Misc</b></summary>
+<br>
 
 * Accepts UNIX timestamps (instead of block IDs) that get resolved into the closest block IDs commited at those times.
 * Save all data from visited transactions into file for later reviewing.
@@ -51,17 +77,19 @@ All of these methods can be used either separately or in any combination:
 * Print general progress metrics (e.g. how many blocks / transactions have been parsed, how many blocks are left) every minute and also display some interesting metrics at the end of the current run.
 * More useful features found on the manual (`-h`)!
 
+</details>
+
 ## Usage
 
 ### Common use cases
-* Standard search (look inside transactions via file headers) with API key on default location (`.api-key`) and between these two block IDs (inclusive):
+* Standard search (look inside transactions via file headers) on MainNet with API key on default location (`.api-key`) and between these two block IDs (inclusive):
 ```bash
 $ etherblob 4081599 4081600
 ```
 
-* More "in-through" search (search for embedded files + regular search method) with key inside arbitrary file:
+* More "in-through" search (search for embedded files + regular search method) on goerli network with key inside arbitrary file:
 ```bash
-$ etherblob -K api.key 4081599 4081600 -M
+$ etherblob -K api.key 3134050 3145570 -M --network goerli
 ```
 
 * Search over block headers and transactions at the same time and save extracted files to 'extracted':
@@ -103,10 +131,11 @@ $ etherblob 4081599 4081600 -U -S -M --blocks --transactions --addresses --contr
 
 ### Manual
 ```
-usage: etherblob [-h] [--transactions] [--blocks] [--addresses] [--contracts] [-M] [-U] [-E CUSTOM_ENTROPY CUSTOM_ENTROPY]
-                    [--encrypted] [-S] [-C CONTRACT_POSITION] [-t] [-K API_KEY_PATH] [-k API_KEY] [-D OUTPUT_DIR] [-o OUT_LOG] [-s]
-                    [-i [IGNORED_FMT ...]] [--version]
-                    start_block end_block
+usage: etherblob [-h] [--transactions] [--blocks] [--addresses] [--contracts]
+                 [--network {main,goerli,kovan,rinkeby,ropsten}] [-M] [-U] [-E CUSTOM_ENTROPY CUSTOM_ENTROPY]
+                 [--encrypted] [-S] [-C CONTRACT_POSITION] [-t] [-K API_KEY_PATH] [-k API_KEY] [-D OUTPUT_DIR]
+                 [-o OUT_LOG] [-s] [-i [IGNORED_FMT [IGNORED_FMT ...]]] [--version]
+                 start_block end_block
 
 Tool to search and extract blob files on the Ethereum Network.
 
@@ -117,30 +146,34 @@ positional arguments:
 optional arguments:
   -h, --help            show this help message and exit
   --transactions        Search for blob files on transaction inputs. Default search mode.
-  --blocks              Search for blob files on block inputs. If enabled then transaction input check is disabled unless explicitly
-                        enabled.
-  --addresses           Search for blob files on 'to' transaction addresses, as on Ethereum anyone can make transactions to an arbitrary
-                        address even if it has no related owner (still not very common). If enabled then transaction's input check is
+  --blocks              Search for blob files on block inputs. If enabled then transaction input check is disabled
+                        unless explicitly enabled.
+  --addresses           Search for blob files on 'to' transaction addresses, as on Ethereum anyone can make
+                        transactions to an arbitrary address even if it has no related owner (still not very
+                        common). If enabled then transaction's input check is disabled unless explicitly enabled.
+  --contracts           Search for blob files on contract's storage. If enabled then transaction input check is
                         disabled unless explicitly enabled.
-  --contracts           Search for blob files on contract's storage. If enabled then transaction input check is disabled unless
-                        explicitly enabled.
-  -M, --embedded        If enabled, search for embedded files on data (from blocks, transactions or addresses) via binwalk. Disabled by
-                        default as parsing now takes longer.
-  -U, --unicode         If enabled, attempt to search and dump files containing UTF-8 text from harvested data (blocks, transactions,
-                        addresses) using Shannon's Entropy (between 3.5 and 5.0) if no other discernible file is found first on that
-                        data. Yields many false positives.
+  --network {main,goerli,kovan,rinkeby,ropsten}, -N {main,goerli,kovan,rinkeby,ropsten}
+                        Choose blockchain network to search in. Available choices are Main, Goerli (Görli), Kovan,
+                        Rinkeby and Ropsten. MainNet is the default network. Case-insensitive.
+  -M, --embedded        If enabled, search for embedded files on data (from blocks, transactions or addresses) via
+                        binwalk. Disabled by default as parsing now takes longer.
+  -U, --unicode         If enabled, attempt to search and dump files containing UTF-8 text from harvested data
+                        (blocks, transactions, addresses) using Shannon's Entropy (between 3.5 and 5.0) if no other
+                        discernible file is found first on that data. Yields many false positives.
   -E CUSTOM_ENTROPY CUSTOM_ENTROPY, --custom-entropy CUSTOM_ENTROPY CUSTOM_ENTROPY
                         Define your own entropy limits (min and max) to search for files/data on harvested data.
-  --encrypted           If enabled, attempt to search and dump encrypted/compressed data found via different search methods (blocks,
-                        transactions, addresses) using Shannon's Entropy (between 7.0 and 8.0) if no other discernible file is found
-                        first on that data.
-  -S, --strings         If enabled, attempt to search and dump ASCII strings into files found inside harvested data (blocks,
-                        transactions, addresses) if no other discernible file is found first on that data.
+  --encrypted           If enabled, attempt to search and dump encrypted/compressed data found via different search
+                        methods (blocks, transactions, addresses) using Shannon's Entropy (between 7.0 and 8.0) if
+                        no other discernible file is found first on that data.
+  -S, --strings         If enabled, attempt to search and dump ASCII strings into files found inside harvested data
+                        (blocks, transactions, addresses) if no other discernible file is found first on that data.
   -C CONTRACT_POSITION, --contract-position CONTRACT_POSITION
-                        Search for contract data until reaching the (N-1)th position on its storage array. Positions contain 32 bytes
-                        worth of data. Count starts at 0 and default pos is the 15th pos (16 indexes in total).
-  -t, --timestamps      If enabled, then start and end block IDs are interpreted as UNIX timestamps that are then resolved to the
-                        closest commited blocks for those specific times.
+                        Search for contract data until reaching the (N-1)th position on its storage array. Positions
+                        contain 32 bytes worth of data. Count starts at 0 and default pos is the 15th pos (16
+                        indexes in total).
+  -t, --timestamps      If enabled, then start and end block IDs are interpreted as UNIX timestamps that are then
+                        resolved to the closest commited blocks for those specific times.
   -K API_KEY_PATH, --api-key-path API_KEY_PATH
                         Path to file with Etherscan API key for queries. Default search location is '.api-key'.
   -k API_KEY, --api-key API_KEY
@@ -150,11 +183,13 @@ optional arguments:
   -o OUT_LOG, --out-log OUT_LOG
                         Out-file for logs. Default is 'etherblob_{start block}-{end block}.log'.
   -s, --save-transactions
-                        If enabled, all transactions and their info are stored at file 'transactions_{start-block}-{end-block}.txt'
-  -i [IGNORED_FMT ...], --ignored-fmt [IGNORED_FMT ...]
-                        Ignored file formats for extraction. Default ignored/common file formats are 'ISO-8859 text' and 'Non-ISO
-                        extended-ASCII text'. The 'data' file format is always ignored. Accepts file format substrings and makes case-
-                        insensitive matches. '*' is a wildcard to ignore all file formats.
+                        If enabled, all transactions and their info are stored at file 'transactions_{start-
+                        block}-{end-block}.txt'
+  -i [IGNORED_FMT [IGNORED_FMT ...]], --ignored-fmt [IGNORED_FMT [IGNORED_FMT ...]]
+                        Ignored file formats for extraction. Default ignored/common file formats are 'ISO-8859 text'
+                        and 'Non-ISO extended-ASCII text'. The 'data' file format is always ignored. Accepts file
+                        format substrings and makes case-insensitive matches. '*' is a wildcard to ignore all file
+                        formats.
   --version             show program's version number and exit
 
 Official GitHub repo 'https://github.com/litneet64/etherblob-explorer'
