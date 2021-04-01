@@ -22,8 +22,8 @@ class EtherBlobExplorer():
         self.print_banner()
         self.logger = Logger(args)
         self.ext_dir = self.create_ext_dir(args.start_block, args.end_block, args.output_dir)
-        self.api_key = self.get_apikey(args.api_key, args.api_key_path)
-        self.eth_scan = Etherscan(self.api_key)
+        api_key = self.get_apikey(args.api_key, args.api_key_path)
+        self.eth_scan = self.init_etherscan(api_key, args.network)
 
         # resolve block ids from timestamp if enabled
         args.start_block, args.end_block = self.resolve_blk_id(args.start_block,
@@ -85,6 +85,11 @@ class EtherBlobExplorer():
         self.stats.show_final_metrics()
 
         return
+
+
+    # initialize etherscan object choosing network from args
+    def init_etherscan(self, apikey, net):
+        return Etherscan(apikey, net)
 
 
     # get block information
