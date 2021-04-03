@@ -6,7 +6,7 @@ class Args():
     @classmethod
     def get_args(cls):
         args = cls.setup_argparser()
-        args = cls.parse_args(args)
+        args = cls.validate_args(args)
 
         return args
 
@@ -20,12 +20,17 @@ class Args():
         return
 
 
-    # parse args according to certain logic (on error, should make program end on the spot)
+    # validate args according to certain logic (on error, should make program end on the spot)
     @classmethod
-    def parse_args(cls, args):
+    def validate_args(cls, args):
         # enable transaction search mode as default only if other modes are not enabled
         if not args.blocks and not args.addresses and not args.contracts:
             args.transactions = True
+
+        # enable file header search as default only if other locations are not enabled
+        if not args.embedded and not args.unicode and not args.encrypted \
+        and not args.strings and args.custom_entropy == [-1, -1]:
+            args.file_header = True
 
         # assure ending range ID bigger than starting one
         if args.end_block < args.start_block:
@@ -48,9 +53,10 @@ class Args():
             if not valid:
                 cls.print_exit("Entropy limits should be between 0.0 and 8.0 and with first < second!")
 
-        # assure custom entropy limits and encrypted flag are not set at same time
-        if args.encrypted and args.custom_entropy != [-1, -1]:
-            cls.print_exit("Custom entropies and encrypted flag should be set separately!")
+        # assure custom entropy limits and encrypted/unicode flag are not set at same time
+        if ((args.encrypted or args.unicode) and args.custom_entropy != [-1, -1]) \
+        or (args.encrypted and args.unicode):
+            cls.print_exit("Custom entropies/encrypted/unicode flag should be used separately!")
 
         # assure sane storage array indexes and check that it's only selected when '--contracts' is enabled
         if (cont_pos := args.contract_position) != -1:
@@ -103,6 +109,12 @@ class Args():
                 choices = ['main', 'goerli', 'kovan', 'rinkeby', 'ropsten'],
                 default = 'main')
 
+        # enable file header search
+        parser.add_argument('-H', '--file-header', action = 'store_true', help = 'If enabled,\
+                search for file formats via magic bytes/file headers on data \
+                (from blocks, transactions or addresses). \
+                Enabled by default unless another method is enabled too.')
+
         # enable embedded file search
         parser.add_argument('-M', '--embedded', action = 'store_true', help = 'If enabled,\
                 search for embedded files on data (from blocks, transactions or addresses) via \
@@ -133,10 +145,10 @@ class Args():
                 found first on that data.')
 
         # search until the (N-1)th position at contract's storage array
-        parser.add_argument('-C', '--contract-position', type = int, help = 'Search for contract data \
+        parser.add_argument('-C', '--contract-position', type = int, help = 'Search inside contract\'s data \
                 until reaching the (N-1)th position on its storage array. Positions contain 32 \
                 bytes worth of data. Count starts at 0 and default pos is the 15th pos \
-                (16 indexes in total).', default = -1)
+                (16 indexes in total) if no custom position is given.', default = -1)
 
         # interpret start and end block ids as timestamps
         parser.add_argument('-t', '--timestamps', action = 'store_true', help = 'If enabled, then start and \

@@ -30,9 +30,10 @@ class Extractor():
         self.contract_pos = self.get_contract_position(blob_exp.args.contract_position)
 
         # get entropy limits, strings arg and embedded flag
-        self.ent_limits = self.get_entropy_limits(blob_exp.args)
-        self.strings = self.get_strings_arg(blob_exp.args)
         self.embedded = self.get_embedded_arg(blob_exp.args)
+        self.file_header = self.get_file_header_arg(blob_exp.args)
+        self.strings = self.get_strings_arg(blob_exp.args)
+        self.ent_limits = self.get_entropy_limits(blob_exp.args)
 
         # interesting addresses that smuggled data on 'to' field in transaction
         self.tracked_addr = {}
@@ -211,7 +212,7 @@ class Extractor():
                 self.logger.info_file(log_msg.format(file_fmt, id, "found embedded", file_n))
 
         # (default method) check for magic bytes or file header and haven't found anything via binwalk
-        elif header_f := self.get_file_via_headers(raw_data):
+        elif self.file_header and (header_f := self.get_file_via_headers(raw_data)):
             file = header_f.popitem()
             self.logger.info_file(log_msg.format(file[1], id, "via file header", file[0]))
 
@@ -415,6 +416,14 @@ class Extractor():
             self.logger.info("Search and extract embedded files enabled...")
 
         return args.embedded
+
+
+    # log if file header flag argument is enabled
+    def get_file_header_arg(self, args):
+        if args.file_header:
+            self.logger.info("Search and extract via file header/magic bytes enabled...")
+
+        return args.file_header
 
 
     # parse raw api-given data into bytes
