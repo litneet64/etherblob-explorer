@@ -48,9 +48,10 @@ class Args():
             if not valid:
                 cls.print_exit("Entropy limits should be between 0.0 and 8.0 and with first < second!")
 
-        # assure custom entropy limits and encrypted flag are not set at same time
-        if args.encrypted and args.custom_entropy != [-1, -1]:
-            cls.print_exit("Custom entropies and encrypted flag should be set separately!")
+        # assure custom entropy limits and encrypted/unicode flag are not set at same time
+        if ((args.encrypted or args.unicode) and args.custom_entropy != [-1, -1]) \
+        or (args.encrypted and args.unicode):
+            cls.print_exit("Custom entropies/encrypted/unicode flag should be used separately!")
 
         # assure sane storage array indexes and check that it's only selected when '--contracts' is enabled
         if (cont_pos := args.contract_position) != -1:
